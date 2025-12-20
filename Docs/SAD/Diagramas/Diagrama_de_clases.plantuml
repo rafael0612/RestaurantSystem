@@ -1,0 +1,248 @@
+@startuml
+hide circle
+skinparam classAttributeIconSize 0
+
+'========================
+' ENUMS
+'========================
+enum RolUsuario {
+  Admin
+  Mesero
+  Cocinero
+  Caja
+}
+
+enum TipoCuenta {
+  Salon
+  Llevar
+}
+
+enum EstadoCuenta {
+  Abierta
+  PorCobrar
+  Cerrada
+  Anulada
+}
+
+enum EstadoMesa {
+  Libre
+  Ocupada
+  PorCobrar
+}
+
+enum EstadoComanda {
+  Abierta
+  EnCocina
+  Listo
+  Entregado
+  Cerrada
+  Anulada
+}
+
+enum EstadoCocinaItem {
+  Pendiente
+  Preparando
+  Listo
+  Entregado
+  Anulado
+}
+
+enum MetodoPago {
+  Efectivo
+  Yape
+  Plin
+}
+
+enum EstadoCajaSesion {
+  Abierta
+  Cerrada
+  Anulada
+}
+
+enum TipoMovimientoCaja {
+  Ingreso
+  Egreso
+  Ajuste
+  Anulacion
+}
+
+'========================
+' SEGURIDAD
+'========================
+class Usuario {
+  +Guid Id
+  +string Nombre
+  +string Username
+  +string PasswordHash
+  +RolUsuario Rol
+  +bool Activo
+  +DateTime CreadoEn
+}
+
+'========================
+' CATALOGO
+'========================
+class Producto {
+  +Guid Id
+  +string Nombre
+  +decimal Precio
+  +decimal CostoEstandar
+  +string Tipo  'Plato/Bebida/Combo
+  +bool Activo
+}
+
+class MenuDia {
+  +Guid Id
+  +Date Fecha
+  +bool Activo
+}
+
+class MenuDiaItem {
+  +Guid Id
+  +Guid MenuDiaId
+  +Guid ProductoId
+}
+
+MenuDia "1" o-- "0..*" MenuDiaItem
+Producto "1" <-- "0..*" MenuDiaItem
+
+'========================
+' SALON
+'========================
+class Mesa {
+  +Guid Id
+  +string Nombre 'Mesa 1..4
+  +EstadoMesa Estado
+  +int? NroPersonas
+}
+
+'========================
+' CUENTA (TAB)
+'========================
+class Cuenta {
+  +Guid Id
+  +TipoCuenta Tipo
+  +EstadoCuenta Estado
+  +Guid? MesaId
+  +DateTime AperturaEn
+  +DateTime? CierreEn
+  +Guid CreadaPorUsuarioId
+  +string? ObservacionGeneral
+}
+
+Mesa "1" o-- "0..*" Cuenta : historial
+Usuario "1" <-- "0..*" Cuenta : creada_por
+
+'========================
+' COMANDA (ENVÍO A COCINA / RONDA)
+'========================
+class Comanda {
+  +Guid Id
+  +Guid CuentaId
+  +EstadoComanda Estado
+  +DateTime CreadaEn
+  +Guid CreadaPorUsuarioId
+  +int NumeroSecuencia  '1ra ronda, 2da...
+}
+
+Cuenta "1" o-- "0..*" Comanda
+Usuario "1" <-- "0..*" Comanda : creada_por
+
+class ComandaDetalle {
+  +Guid Id
+  +Guid ComandaId
+  +Guid ProductoId
+  +int Cantidad
+  +decimal PrecioUnitario
+  +decimal CostoUnitarioEstandar
+  +string? Observacion
+  +EstadoCocinaItem EstadoCocina
+  +int CantidadPagada
+  +bool Anulado
+}
+
+Comanda "1" o-- "1..*" ComandaDetalle
+Producto "1" <-- "0..*" ComandaDetalle
+
+'========================
+' CAJA
+'========================
+class CajaSesion {
+  +Guid Id
+  +Guid UsuarioId
+  +EstadoCajaSesion Estado
+  +DateTime AperturaEn
+  +decimal MontoApertura
+  +DateTime? CierreEn
+  +decimal? MontoCierreContado
+  +decimal? EfectivoEsperado
+  +decimal? Diferencia
+}
+
+Usuario "1" <-- "0..*" CajaSesion : cajero
+
+class Pago {
+  +Guid Id
+  +Guid CuentaId
+  +Guid CajaSesionId
+  +DateTime PagadoEn
+  +decimal Total
+  +bool Anulado
+  +string? MotivoAnulacion
+}
+
+Cuenta "1" o-- "0..*" Pago
+CajaSesion "1" o-- "0..*" Pago
+
+' Pagos mixtos (Efectivo + Yape + Plin)
+class PagoMetodo {
+  +Guid Id
+  +Guid PagoId
+  +MetodoPago Metodo
+  +decimal Monto
+  +string? ReferenciaOperacion
+}
+
+Pago "1" o-- "1..*" PagoMetodo
+
+' División por ítems (asignación del pago a detalles)
+class PagoDetalle {
+  +Guid Id
+  +Guid PagoId
+  +Guid ComandaDetalleId
+  +int CantidadPagada
+  +decimal MontoAsignado
+}
+
+Pago "1" o-- "1..*" PagoDetalle
+ComandaDetalle "1" <-- "0..*" PagoDetalle
+
+class MovimientoCaja {
+  +Guid Id
+  +Guid CajaSesionId
+  +TipoMovimientoCaja Tipo
+  +decimal Monto
+  +string Motivo
+  +DateTime Fecha
+  +Guid UsuarioId
+}
+
+CajaSesion "1" o-- "0..*" MovimientoCaja
+Usuario "1" <-- "0..*" MovimientoCaja : registrado_por
+
+'========================
+' AUDITORIA
+'========================
+class AuditoriaEvento {
+  +Guid Id
+  +DateTime Fecha
+  +Guid UsuarioId
+  +string Accion 'ANULA_PAGO, REIMPRIME_COMANDA, etc.
+  +string Entidad 'Pago/Comanda/Cuenta...
+  +Guid EntidadId
+  +string? Motivo
+}
+
+Usuario "1" <-- "0..*" AuditoriaEvento
+
+@enduml

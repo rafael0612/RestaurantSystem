@@ -1,0 +1,202 @@
+@startuml
+!theme blueprint
+hide circle
+skinparam linetype ortho
+skinparam classAttributeIconSize 0
+
+'========================
+' ENTIDADES (TABLAS)
+'========================
+
+entity "Usuario" as Usuario {
+  * Id : GUID <<PK>>
+  --
+  Nombre : varchar
+  Username : varchar
+  PasswordHash : varchar
+  Rol : int
+  Activo : bit
+  CreadoEn : datetime
+}
+
+entity "Producto" as Producto {
+  * Id : GUID <<PK>>
+  --
+  Nombre : varchar
+  Precio : decimal(18,2)
+  CostoEstandar : decimal(18,2)
+  Tipo : varchar  'Plato/Bebida/Combo
+  Activo : bit
+}
+
+entity "MenuDia" as MenuDia {
+  * Id : GUID <<PK>>
+  --
+  Fecha : date <<UQ>>
+  Activo : bit
+}
+
+entity "MenuDiaItem" as MenuDiaItem {
+  * Id : GUID <<PK>>
+  --
+  MenuDiaId : GUID <<FK>>
+  ProductoId : GUID <<FK>>
+  ' (UQ opcional) MenuDiaId + ProductoId
+}
+
+entity "Mesa" as Mesa {
+  * Id : GUID <<PK>>
+  --
+  Nombre : varchar <<UQ>>  'Mesa 1..4
+  Estado : int
+  NroPersonas : int NULL
+}
+
+entity "Cuenta" as Cuenta {
+  * Id : GUID <<PK>>
+  --
+  Tipo : int  'Salon/Llevar
+  Estado : int 'Abierta/PorCobrar/Cerrada/Anulada
+  MesaId : GUID NULL <<FK>>
+  AperturaEn : datetime
+  CierreEn : datetime NULL
+  CreadaPorUsuarioId : GUID <<FK>>
+  ObservacionGeneral : varchar NULL
+}
+
+entity "Comanda" as Comanda {
+  * Id : GUID <<PK>>
+  --
+  CuentaId : GUID <<FK>>
+  Estado : int
+  CreadaEn : datetime
+  CreadaPorUsuarioId : GUID <<FK>>
+  NumeroSecuencia : int
+  ' (UQ opcional) CuentaId + NumeroSecuencia
+}
+
+entity "ComandaDetalle" as ComandaDetalle {
+  * Id : GUID <<PK>>
+  --
+  ComandaId : GUID <<FK>>
+  ProductoId : GUID <<FK>>
+  Cantidad : int
+  PrecioUnitario : decimal(18,2)
+  CostoUnitarioEstandar : decimal(18,2)
+  Observacion : varchar NULL
+  EstadoCocina : int
+  CantidadPagada : int
+  Anulado : bit
+}
+
+entity "CajaSesion" as CajaSesion {
+  * Id : GUID <<PK>>
+  --
+  UsuarioId : GUID <<FK>>
+  Estado : int
+  AperturaEn : datetime
+  MontoApertura : decimal(18,2)
+  CierreEn : datetime NULL
+  MontoCierreContado : decimal(18,2) NULL
+  EfectivoEsperado : decimal(18,2) NULL
+  Diferencia : decimal(18,2) NULL
+}
+
+entity "Pago" as Pago {
+  * Id : GUID <<PK>>
+  --
+  CuentaId : GUID <<FK>>
+  CajaSesionId : GUID <<FK>>
+  PagadoEn : datetime
+  Total : decimal(18,2)
+  Anulado : bit
+  MotivoAnulacion : varchar NULL
+}
+
+entity "PagoMetodo" as PagoMetodo {
+  * Id : GUID <<PK>>
+  --
+  PagoId : GUID <<FK>>
+  Metodo : int  'Efectivo/Yape/Plin
+  Monto : decimal(18,2)
+  ReferenciaOperacion : varchar NULL
+}
+
+entity "PagoDetalle" as PagoDetalle {
+  * Id : GUID <<PK>>
+  --
+  PagoId : GUID <<FK>>
+  ComandaDetalleId : GUID <<FK>>
+  CantidadPagada : int
+  MontoAsignado : decimal(18,2)
+}
+
+entity "MovimientoCaja" as MovimientoCaja {
+  * Id : GUID <<PK>>
+  --
+  CajaSesionId : GUID <<FK>>
+  Tipo : int 'Ingreso/Egreso/Ajuste/Anulacion
+  Monto : decimal(18,2)
+  Motivo : varchar
+  Fecha : datetime
+  UsuarioId : GUID <<FK>>
+}
+
+entity "AuditoriaEvento" as AuditoriaEvento {
+  * Id : GUID <<PK>>
+  --
+  Fecha : datetime
+  UsuarioId : GUID <<FK>>
+  Accion : varchar
+  Entidad : varchar
+  EntidadId : GUID
+  Motivo : varchar NULL
+}
+
+'========================
+' RELACIONES (CARDINALIDAD)
+'========================
+
+' Menu del día
+MenuDia  ||--o{ MenuDiaItem  : contiene
+Producto ||--o{ MenuDiaItem  : aparece_en
+
+' Mesa/Cuenta (Cuenta.MesaId es NULL cuando es Llevar)
+Mesa     |o--o{ Cuenta       : "asigna (opcional)"
+Usuario  ||--o{ Cuenta       : crea
+
+' Cuenta/Comandas/Detalles
+Cuenta   ||--o{ Comanda      : tiene
+Usuario  ||--o{ Comanda      : crea
+Comanda  ||--o{ ComandaDetalle : incluye
+Producto ||--o{ ComandaDetalle : vendido_en
+
+' Caja/Pagos
+Usuario   ||--o{ CajaSesion  : abre
+CajaSesion ||--o{ Pago       : registra
+Cuenta    ||--o{ Pago        : recibe
+
+Pago      ||--|{ PagoMetodo  : "pago mixto (>=1)"
+Pago      ||--|{ PagoDetalle : "asignación a ítems (>=1)"
+ComandaDetalle ||--o{ PagoDetalle : "pagado_por"
+
+' Movimientos y auditoría
+CajaSesion ||--o{ MovimientoCaja : movimientos
+Usuario    ||--o{ MovimientoCaja : registra
+Usuario    ||--o{ AuditoriaEvento : genera
+
+note right of Cuenta
+  Regla: Cuenta.Tipo = Llevar => MesaId puede ser NULL
+end note
+
+note right of PagoDetalle
+  Soporta dividir cuenta por ítems:
+  seleccionas ComandaDetalle + CantidadPagada
+end note
+
+note right of PagoMetodo
+  Soporta pagos mixtos:
+  Efectivo + Yape + Plin en el mismo Pago
+end note
+
+@enduml

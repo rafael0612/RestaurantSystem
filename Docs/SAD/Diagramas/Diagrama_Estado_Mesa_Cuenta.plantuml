@@ -1,0 +1,18 @@
+@startuml
+title Estados de Mesa/Cuenta (salón)
+
+[*] --> Libre
+
+Libre --> Ocupada : AbrirCuenta(Mesa)
+Ocupada --> PorCobrar : SolicitarCuenta()
+PorCobrar --> Ocupada : AgregarMasPedido()
+PorCobrar --> Libre : PagoCompleto() + CerrarCuenta()
+
+Ocupada --> Libre : AnularCuenta() [solo Admin/Caja]
+
+state "Regla" as R1
+R1 : Mesa = Libre si no hay Cuenta Abierta/PorCobrar
+R1 : Mesa = PorCobrar si Cuenta.Estado = PorCobrar
+R1 : Mesa = Ocupada si Cuenta.Estado = Abierta
+
+@enduml

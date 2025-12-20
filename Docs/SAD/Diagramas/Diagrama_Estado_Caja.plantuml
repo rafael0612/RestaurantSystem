@@ -1,0 +1,15 @@
+@startuml
+title Estados de CajaSesion
+
+[*] --> Cerrada
+
+Cerrada --> Abierta : AbrirCaja(montoInicial)
+Abierta --> Cerrada : CerrarCaja(montoContado)\nCalculaEfectivoEsperado()
+Abierta --> Anulada : AnularSesion() [Admin]
+
+state "Reglas" as RC
+RC : No se puede cobrar si CajaSesion != Abierta
+RC : EfectivoEsperado = Apertura + IngresosEfectivo - Egresos - Anulaciones + Ajustes
+RC : Diferencia = MontoContado - EfectivoEsperado
+
+@enduml

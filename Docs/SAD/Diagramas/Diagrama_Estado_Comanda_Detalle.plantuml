@@ -1,0 +1,14 @@
+@startuml
+title Estados de cocina (ComandaDetalle)
+
+[*] --> Pendiente : EnviarACocina()
+
+Pendiente --> Preparando : CocineroInicia()
+Preparando --> Listo : CocineroFinaliza()
+Listo --> Entregado : MeseroEntrega()
+
+Pendiente --> Anulado : AnularItem() [Caja/Admin]
+Preparando --> Anulado : AnularItem() [Caja/Admin]
+Listo --> Anulado : AnularItem() [Caja/Admin]
+
+@enduml
