@@ -2,11 +2,11 @@
 
 namespace RestaurantSystem.Domain.Entities
 {
-    public class Product : AggregateRoot
+    public class Producto : AggregateRoot
     {
-        private Product() { }
+        private Producto() { }
 
-        public Product(string nombre, decimal precio, decimal costoEstandar, string tipo)
+        public Producto(string nombre, decimal precio, decimal costoEstandar, string tipo)
         {
             Guard.AgainstNullOrEmpty(nombre, "Nombre de producto es requerido.");
             Guard.AgainstNullOrEmpty(tipo, "Tipo de producto es requerido.");

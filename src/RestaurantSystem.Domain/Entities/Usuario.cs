@@ -3,11 +3,11 @@ using RestaurantSystem.Domain.Enums;
 
 namespace RestaurantSystem.Domain.Entities
 {
-    public class User : AggregateRoot
+    public class Usuario : AggregateRoot
     {
-        private User() { } // Para EF
+        private Usuario() { } // Para EF
 
-        public User(string nombre, string username, string passwordHash, RolUsuario rol)
+        public Usuario(string nombre, string username, string passwordHash, RolUsuario rol)
         {
             Guard.AgainstNullOrEmpty(nombre, "Nombre es requerido.");
             Guard.AgainstNullOrEmpty(username, "Username es requerido.");
