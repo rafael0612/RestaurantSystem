@@ -1,7 +1,10 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using RestaurantSystem.Application.Abstractions.Persistence;
 using RestaurantSystem.Infrastructure.Persistence;
+using RestaurantSystem.Infrastructure.Persistence.Queries;
+using RestaurantSystem.Infrastructure.Persistence.Repositories;
 
 namespace RestaurantSystem.Infrastructure
 {
@@ -22,8 +25,22 @@ namespace RestaurantSystem.Infrastructure
                 });
 
                 // Recomendado para producción (menos tracking)
-                // options.UseQueryTrackingBehavior(QueryTrackingBehavior.NoTracking);
+                // options.UseQueryTrackingBehavior(QueryTrackingBehavior.NoTracking);              
             });
+
+            // Unit of Work
+            services.AddScoped<IUnitOfWork, UnitOfWork>();
+
+            // Repositories
+            services.AddScoped<IMesaRepository, MesaRepository>();
+            services.AddScoped<ICuentaRepository, CuentaRepository>();
+            services.AddScoped<IProductoRepository, ProductoRepository>();
+            services.AddScoped<IComandaRepository, ComandaRepository>();
+            services.AddScoped<ICajaRepository, CajaRepository>();
+
+            // Query repositories
+            services.AddScoped<IKdsQueryRepository, KdsQueryRepository>();
+            services.AddScoped<IReporteRepository, ReporteRepository>();
 
             return services;
         }
