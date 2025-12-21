@@ -1,5 +1,6 @@
-﻿using RestaurantSystem.Application.Dtos;
-using RestaurantSystem.Domain.Enums;
+﻿using RestaurantSystem.Application.Common;
+using RestaurantSystem.Shared.Contracts;
+using RestaurantSystem.Shared.Enums;
 
 namespace RestaurantSystem.Application.Abstractions.Persistence
 {
