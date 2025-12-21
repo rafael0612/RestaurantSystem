@@ -1,5 +1,5 @@
 ﻿using FluentValidation;
-using RestaurantSystem.Application.Dtos;
+using RestaurantSystem.Shared.Contracts;
 
 namespace RestaurantSystem.Application.Validators
 {

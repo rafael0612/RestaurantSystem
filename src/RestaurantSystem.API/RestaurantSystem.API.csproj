@@ -7,7 +7,17 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="FluentValidation.AspNetCore" Version="11.3.1" />
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.1" />
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.1" />
+    <PackageReference Include="Swashbuckle.AspNetCore" Version="10.1.0" />
+    <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.15.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\RestaurantSystem.Application\RestaurantSystem.Application.csproj" />
+    <ProjectReference Include="..\RestaurantSystem.Infrastructure\RestaurantSystem.Infrastructure.csproj" />
+    <ProjectReference Include="..\RestaurantSystem.Shared\RestaurantSystem.Shared.csproj" />
   </ItemGroup>
 
 </Project>

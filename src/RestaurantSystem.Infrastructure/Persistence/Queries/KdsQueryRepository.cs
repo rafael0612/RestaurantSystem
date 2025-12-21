@@ -1,7 +1,8 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using RestaurantSystem.Application.Abstractions.Persistence;
-using RestaurantSystem.Application.Dtos;
-using RestaurantSystem.Domain.Enums;
+using RestaurantSystem.Shared.Contracts;
+using RestaurantSystem.Shared.Enums;
+using D = RestaurantSystem.Domain.Enums;
 
 namespace RestaurantSystem.Infrastructure.Persistence.Queries
 {
@@ -12,17 +13,22 @@ namespace RestaurantSystem.Infrastructure.Persistence.Queries
 
         public async Task<List<KdsCardDto>> GetKdsAsync(EstadoCocinaItem? estadoFiltro, CancellationToken ct)
         {
-            // Nota: Cuenta no tiene navegación a Mesa; usamos join por MesaId
-            // También ComandaDetalle no tiene nav a Producto; usamos join por ProductoId
+            // Convertimos filtro Shared -> Domain para filtrar en BD
+            D.EstadoCocinaItem? estadoDom = estadoFiltro.HasValue
+                ? (D.EstadoCocinaItem?)(D.EstadoCocinaItem)(int)estadoFiltro.Value
+                : null;
 
             var comandasBase = _db.Comandas
                 .AsNoTracking()
-                .Where(c => c.Estado == EstadoComanda.EnCocina || c.Estado == EstadoComanda.Listo);
+                .Where(c => c.Estado == D.EstadoComanda.EnCocina || c.Estado == D.EstadoComanda.Listo);
 
-            if (estadoFiltro.HasValue)
+            if (estadoDom.HasValue)
             {
                 comandasBase = comandasBase.Where(c =>
-                    _db.ComandaDetalles.Any(d => d.ComandaId == c.Id && !d.Anulado && d.EstadoCocina == estadoFiltro.Value));
+                    _db.ComandaDetalles.Any(d =>
+                        d.ComandaId == c.Id &&
+                        !d.Anulado &&
+                        d.EstadoCocina == estadoDom.Value));
             }
 
             var cards = await (
@@ -43,7 +49,13 @@ namespace RestaurantSystem.Infrastructure.Persistence.Queries
                 select new
                 {
                     d.ComandaId,
-                    Item = new KdsItemDto(d.Id, p.Nombre, d.Cantidad, d.Observacion, d.EstadoCocina)
+                    Item = new KdsItemDto(
+                        d.Id,
+                        p.Nombre,
+                        d.Cantidad,
+                        d.Observacion,
+                        (EstadoCocinaItem)(int)d.EstadoCocina // Domain -> Shared
+                    )
                 }
             ).ToListAsync(ct);
 
@@ -53,7 +65,7 @@ namespace RestaurantSystem.Infrastructure.Persistence.Queries
 
             var result = cards.Select(x =>
             {
-                var origen = x.cu.Tipo == TipoCuenta.Llevar
+                var origen = x.cu.Tipo == D.TipoCuenta.Llevar
                     ? "Para llevar"
                     : (x.mesa?.Nombre ?? "Mesa");
 
@@ -62,7 +74,7 @@ namespace RestaurantSystem.Infrastructure.Persistence.Queries
                     x.cu.Id,
                     origen,
                     x.c.CreadaEn,
-                    x.c.Estado,
+                    (EstadoComanda)(int)x.c.Estado, // Domain -> Shared
                     itemsByComanda.TryGetValue(x.c.Id, out var list) ? list : new List<KdsItemDto>()
                 );
             }).ToList();

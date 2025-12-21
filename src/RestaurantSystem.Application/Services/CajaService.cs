@@ -1,9 +1,11 @@
 ﻿using RestaurantSystem.Application.Abstractions.Persistence;
 using RestaurantSystem.Application.Abstractions.Security;
-using RestaurantSystem.Application.Dtos;
+using RestaurantSystem.Application.Common;
 using RestaurantSystem.Application.Services.Rules;
 using RestaurantSystem.Domain.Entities;
-using RestaurantSystem.Domain.Enums;
+using RestaurantSystem.Shared.Contracts;
+using D = RestaurantSystem.Domain.Enums;
+using S = RestaurantSystem.Shared.Enums;
 
 namespace RestaurantSystem.Application.Services
 {
@@ -58,21 +60,26 @@ namespace RestaurantSystem.Application.Services
 
         public async Task RegistrarEgresoAsync(decimal monto, string motivo, CancellationToken ct)
         {
-            var sesion = await _caja.GetCajaAbiertaAsync(ct) ?? throw new InvalidOperationException("Caja no está abierta.");
+            var sesion = await _caja.GetCajaAbiertaAsync(ct) 
+                        ?? throw new InvalidOperationException("Caja no está abierta.");
 
-            var mov = new MovimientoCaja(sesion.Id, _currentUser.UserId, TipoMovimientoCaja.Egreso, monto, motivo);
+            // OJO: TipoMovimientoCaja es Domain enum
+            var mov = new MovimientoCaja(sesion.Id, _currentUser.UserId, D.TipoMovimientoCaja.Egreso, monto, motivo);
+
             await _caja.AddMovimientoAsync(mov, ct);
             await _uow.SaveChangesAsync(ct);
         }
 
         public async Task<PagoResultDto> RegistrarPagoAsync(RegistrarPagoRequest req, CancellationToken ct)
         {
-            var sesion = await _caja.GetCajaAbiertaAsync(ct) ?? throw new InvalidOperationException("Caja no está abierta.");
+            var sesion = await _caja.GetCajaAbiertaAsync(ct) 
+                        ?? throw new InvalidOperationException("Caja no está abierta.");
 
             var cuenta = await _cuentas.GetByIdAsync(req.CuentaId, includeDetails: true, ct)
                         ?? throw new KeyNotFoundException("Cuenta no existe.");
 
-            if (cuenta.Estado is EstadoCuenta.Cerrada or EstadoCuenta.Anulada)
+            // EstadoCuenta es Domain enum en la entidad Cuenta
+            if (cuenta.Estado is D.EstadoCuenta.Cerrada or D.EstadoCuenta.Anulada)
                 throw new InvalidOperationException("Cuenta cerrada/anulada.");
 
             // 1) Traer items y validar pendientes
@@ -103,7 +110,7 @@ namespace RestaurantSystem.Application.Services
 
             foreach (var m in req.Metodos)
             {
-                pago.AgregarMetodo(m.Metodo, m.Monto, m.ReferenciaOperacion);
+                pago.AgregarMetodo(m.Metodo.ToDomain(), m.Monto, m.ReferenciaOperacion);
             }
 
             pago.ValidarConsistencia();
@@ -128,12 +135,14 @@ namespace RestaurantSystem.Application.Services
 
             await _uow.SaveChangesAsync(ct);
 
+            // PagoResultDto es Shared.Contracts, no requiere mapping
             return new PagoResultDto(pago.Id, pago.Total, pago.PagadoEn);
         }
 
         public async Task CerrarCajaAsync(CerrarCajaRequest req, CancellationToken ct)
         {
-            var sesion = await _caja.GetCajaAbiertaAsync(ct) ?? throw new InvalidOperationException("Caja no está abierta.");
+            var sesion = await _caja.GetCajaAbiertaAsync(ct) 
+                        ?? throw new InvalidOperationException("Caja no está abierta.");
 
             // El cálculo exacto de efectivo esperado se hace mejor en Infra con query agregada.
             // Aquí lo dejamos como placeholder: en Infra lo implementaremos y lo pasaremos.

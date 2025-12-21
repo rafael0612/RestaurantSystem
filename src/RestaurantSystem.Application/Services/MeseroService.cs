@@ -1,8 +1,10 @@
 ﻿using RestaurantSystem.Application.Abstractions.Persistence;
 using RestaurantSystem.Application.Abstractions.Security;
-using RestaurantSystem.Application.Dtos;
+using RestaurantSystem.Application.Common;
+using RestaurantSystem.Shared.Contracts;
 using RestaurantSystem.Domain.Entities;
-using RestaurantSystem.Domain.Enums;
+using D = RestaurantSystem.Domain.Enums;
+using S = RestaurantSystem.Shared.Enums;
 
 namespace RestaurantSystem.Application.Services
 {
@@ -53,14 +55,15 @@ namespace RestaurantSystem.Application.Services
             foreach (var m in list.OrderBy(x => x.Nombre))
             {
                 var cuentaActiva = await _cuentas.GetCuentaActivaPorMesaAsync(m.Id, ct);
-                result.Add(new MesaResumenDto(m.Id, m.Nombre, m.Estado, m.NroPersonas, cuentaActiva?.Id));
+                result.Add(new MesaResumenDto(m.Id, m.Nombre, m.Estado.ToShared(), m.NroPersonas, cuentaActiva?.Id));
             }
             return result;
         }
 
         public async Task<Guid> AbrirCuentaAsync(AbrirCuentaRequest req, CancellationToken ct)
         {
-            if (req.Tipo == TipoCuenta.Salon)
+            var tipoDomain = req.Tipo.ToDomain();
+            if (tipoDomain == D.TipoCuenta.Salon)
             {
                 if (!req.MesaId.HasValue) throw new InvalidOperationException("MesaId requerido para salón.");
 
@@ -69,7 +72,7 @@ namespace RestaurantSystem.Application.Services
                 if (existente is not null) return existente.Id;
             }
 
-            var cuenta = new Cuenta(req.Tipo, req.MesaId, _currentUser.UserId, req.ObservacionGeneral);
+            var cuenta = new Cuenta(req.Tipo.ToDomain(), req.MesaId, _currentUser.UserId, req.ObservacionGeneral);
 
             await _cuentas.AddAsync(cuenta, ct);
             await _uow.SaveChangesAsync(ct);
@@ -91,7 +94,8 @@ namespace RestaurantSystem.Application.Services
             var cuenta = await _cuentas.GetByIdAsync(cuentaId, includeDetails: true, ct)
                         ?? throw new KeyNotFoundException("Cuenta no existe.");
 
-            if (cuenta.Estado is EstadoCuenta.Cerrada or EstadoCuenta.Anulada)
+            // EstadoCuenta aquí es Domain enum
+            if (cuenta.Estado is D.EstadoCuenta.Cerrada or D.EstadoCuenta.Anulada)
                 throw new InvalidOperationException("Cuenta cerrada/anulada.");
 
             var nextSeq = cuenta.Comandas.Count == 0 ? 1 : cuenta.Comandas.Max(x => x.NumeroSecuencia) + 1;
@@ -146,8 +150,8 @@ namespace RestaurantSystem.Application.Services
 
             return new CuentaDetalleDto(
                 cuenta.Id,
-                cuenta.Tipo,
-                cuenta.Estado,
+                cuenta.Tipo.ToShared(),
+                cuenta.Estado.ToShared(),
                 cuenta.MesaId,
                 MesaNombre: null,
                 cuenta.AperturaEn,
