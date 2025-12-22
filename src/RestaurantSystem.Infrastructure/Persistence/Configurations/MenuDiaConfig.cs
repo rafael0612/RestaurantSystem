@@ -23,12 +23,19 @@ namespace RestaurantSystem.Infrastructure.Persistence.Configurations
             b.Property(x => x.Activo).IsRequired();
 
             // Relación 1..* (MenuDia -> Items)
-            b.HasMany<MenuDiaItem>("_items")
+            //b.HasMany<MenuDiaItem>("_items")
+            //    .WithOne()
+            //    .HasForeignKey(x => x.MenuDiaId)
+            //    .OnDelete(DeleteBehavior.Cascade);
+            b.HasMany(x => x.Items)
                 .WithOne()
                 .HasForeignKey(x => x.MenuDiaId)
                 .OnDelete(DeleteBehavior.Cascade);
 
-            b.Navigation("_items").UsePropertyAccessMode(PropertyAccessMode.Field);
+            //b.Navigation("_items").UsePropertyAccessMode(PropertyAccessMode.Field);
+            b.Navigation(x => x.Items)
+                .HasField("_items")
+                .UsePropertyAccessMode(PropertyAccessMode.Field);
         }
     }
 }

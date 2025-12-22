@@ -1,0 +1,161 @@
+﻿@page "/mesero/mesas"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Mesero,Admin")]
+
+@inject RestaurantSystem.Client.Services.MeseroApi MeseroApi
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+@inject NavigationManager Nav
+
+<MudStack Spacing="2">
+    <MudStack Row="true" AlignItems="AlignItems.Center" JustifyContent="JustifyContent.SpaceBetween">
+        <MudText Typo="Typo.h5">Mesas</MudText>
+        <MudButton Variant="Variant.Outlined" Size="Size.Medium" OnClick="Reload" StartIcon="@Icons.Material.Filled.Refresh">
+            Actualizar
+        </MudButton>
+    </MudStack>
+
+    @if (_loading)
+    {
+        <MudProgressLinear Indeterminate="true" />
+    }
+    else
+    {
+        <MudGrid Spacing="2">
+            @foreach (var m in _mesas.OrderBy(x => x.Nombre))
+            {
+                <MudItem xs="12" sm="6">
+                    <MudCard Class="pa-2">
+                        <MudCardContent>
+                            <MudText Typo="Typo.h6">@m.Nombre</MudText>
+
+                            <MudStack Row="true" Spacing="1" Class="mt-2">
+                                <MudChip T="string" Size="Size.Medium" Variant="Variant.Outlined">@m.Estado.ToString()</MudChip>
+                                @if (m.CuentaActivaId is not null)
+                                {
+                                    <MudChip T="string" Size="Size.Medium" Color="Color.Success" Variant="Variant.Filled">Cuenta activa</MudChip>
+                                }
+                                else
+                                {
+                                    <MudChip T="string" Size="Size.Medium" Color="Color.Default" Variant="Variant.Outlined">Libre</MudChip>
+                                }
+                            </MudStack>
+                        </MudCardContent>
+
+                        <MudCardActions Class="pa-2">
+                            @if (m.CuentaActivaId is not null)
+                            {
+                                <MudButton FullWidth="true"
+                                           Variant="Variant.Filled"
+                                           Size="Size.Large"
+                                           OnClick="@(() => IrCuenta(m.CuentaActivaId!.Value))">
+                                    Ver cuenta
+                                </MudButton>
+                            }
+                            else
+                            {
+                                <MudButton FullWidth="true"
+                                           Variant="Variant.Filled"
+                                           Color="Color.Primary"
+                                           Size="Size.Large"
+                                           OnClick="@(() => AbrirCuentaSalon(m.MesaId, m.Nombre))">
+                                    Abrir cuenta
+                                </MudButton>
+                            }
+                        </MudCardActions>
+                    </MudCard>
+                </MudItem>
+            }
+        </MudGrid>
+
+        <MudDivider Class="my-4" />
+
+        <MudPaper Class="pa-3">
+            <MudText Typo="Typo.subtitle1">Para llevar</MudText>
+            <MudButton FullWidth="true" Size="Size.Large" Variant="Variant.Filled" Color="Color.Secondary"
+                       Class="mt-2"
+                       OnClick="AbrirCuentaLlevar">
+                Abrir cuenta para llevar
+            </MudButton>
+        </MudPaper>
+    }
+</MudStack>
+
+@code {
+    private bool _loading;
+    private List<MesaResumenDto> _mesas = new();
+
+    protected override async Task OnInitializedAsync() => await Reload();
+
+    private async Task Reload()
+    {
+        _loading = true;
+        try
+        {
+            _mesas = await MeseroApi.GetMesasAsync();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private void IrCuenta(Guid cuentaId) => Nav.NavigateTo($"/mesero/cuentas/{cuentaId}");
+
+    private async Task AbrirCuentaSalon(Guid mesaId, string mesaNombre)
+    {
+        var dlg = await DialogService.ShowAsync<AbrirCuentaDialog>($"Abrir cuenta - {mesaNombre}");
+        var result = await dlg.Result;
+
+        if (result!.Canceled) return;
+
+        var data = (AbrirCuentaDialog.Result)result.Data!;
+        try
+        {
+            var req = new AbrirCuentaRequest(
+                Tipo: data.Tipo,
+                MesaId: mesaId,
+                NroPersonas: null,
+                ObservacionGeneral: data.Observacion
+            );
+
+            var cuentaId = await MeseroApi.AbrirCuentaAsync(req);
+            Snackbar.Add("Cuenta abierta.", Severity.Success);
+            IrCuenta(cuentaId);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+
+    private async Task AbrirCuentaLlevar()
+    {
+        var dlg = await DialogService.ShowAsync<AbrirCuentaDialog>("Abrir cuenta - Para llevar");
+        var result = await dlg.Result;
+
+        if (result!.Canceled) return;
+
+        var data = (AbrirCuentaDialog.Result)result.Data!;
+        try
+        {
+            var req = new AbrirCuentaRequest(
+                Tipo: TipoCuenta.Llevar,
+                MesaId: null,
+                NroPersonas: null,
+                ObservacionGeneral: data.Observacion
+            );
+
+            var cuentaId = await MeseroApi.AbrirCuentaAsync(req);
+            Snackbar.Add("Cuenta para llevar abierta.", Severity.Success);
+            IrCuenta(cuentaId);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+}

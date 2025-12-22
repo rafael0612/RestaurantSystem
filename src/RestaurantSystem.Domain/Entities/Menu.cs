@@ -15,7 +15,7 @@ public class MenuDia : AggregateRoot
     public DateOnly Fecha { get; private set; }
     public bool Activo { get; private set; }
 
-    public IReadOnlyCollection<MenuDiaItem> Items => _items;
+    public IReadOnlyCollection<MenuDiaItem> Items => _items.AsReadOnly();
     private readonly List<MenuDiaItem> _items = new();
 
     public void Activar() => Activo = true;

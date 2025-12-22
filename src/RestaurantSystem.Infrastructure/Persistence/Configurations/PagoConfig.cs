@@ -25,18 +25,38 @@ namespace RestaurantSystem.Infrastructure.Persistence.Configurations
                 .OnDelete(DeleteBehavior.Restrict);
 
             // Metodos y Detalles (cascade seguro desde Pago)
-            b.HasMany<PagoMetodo>("_metodos")
+            //b.HasMany<PagoMetodo>("_metodos")
+            //    .WithOne()
+            //    .HasForeignKey(x => x.PagoId)
+            //    .OnDelete(DeleteBehavior.Cascade);
+
+            //b.HasMany<PagoDetalle>("_detalles")
+            //    .WithOne()
+            //    .HasForeignKey(x => x.PagoId)
+            //    .OnDelete(DeleteBehavior.Cascade);
+
+            // Metodos (navegación pública) + backing field "_metodos"
+            b.HasMany(x => x.Metodos)
                 .WithOne()
                 .HasForeignKey(x => x.PagoId)
                 .OnDelete(DeleteBehavior.Cascade);
 
-            b.HasMany<PagoDetalle>("_detalles")
+            b.Navigation(x => x.Metodos)
+                .HasField("_metodos")
+                .UsePropertyAccessMode(PropertyAccessMode.Field);
+
+            // Detalles (navegación pública) + backing field "_detalles"
+            b.HasMany(x => x.Detalles)
                 .WithOne()
                 .HasForeignKey(x => x.PagoId)
                 .OnDelete(DeleteBehavior.Cascade);
 
-            b.Navigation("_metodos").UsePropertyAccessMode(PropertyAccessMode.Field);
-            b.Navigation("_detalles").UsePropertyAccessMode(PropertyAccessMode.Field);
+            b.Navigation(x => x.Detalles)
+                .HasField("_detalles")
+                .UsePropertyAccessMode(PropertyAccessMode.Field);
+
+            //b.Navigation("_metodos").UsePropertyAccessMode(PropertyAccessMode.Field);
+            //b.Navigation("_detalles").UsePropertyAccessMode(PropertyAccessMode.Field);
 
             b.HasIndex(x => new { x.CajaSesionId, x.PagadoEn });
             b.HasIndex(x => x.CuentaId);

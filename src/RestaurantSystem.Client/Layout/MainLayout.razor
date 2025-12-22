@@ -1,0 +1,74 @@
+﻿@* @inherits LayoutComponentBase
+<div class="page">
+    <div class="sidebar">
+        <NavMenu />
+    </div>
+
+    <main>
+        <div class="top-row px-4">
+            <a href="https://learn.microsoft.com/aspnet/core/" target="_blank">About</a>
+        </div>
+
+        <article class="content px-4">
+            @Body
+        </article>
+    </main>
+</div>
+ *@
+
+@inherits LayoutComponentBase
+@inject AuthenticationStateProvider Auth
+@inject RestaurantSystem.Client.Services.AuthApi AuthApi
+@inject NavigationManager Nav
+
+<MudThemeProvider />
+<MudDialogProvider />
+<MudPopoverProvider />
+<MudSnackbarProvider />
+
+<MudLayout>
+    <MudAppBar Elevation="1">
+        <MudText Typo="Typo.h6">Sistema Restaurante</MudText>
+        <MudSpacer />
+
+        <AuthorizeView>
+            <Authorized>
+                <MudButton Variant="Variant.Outlined" OnClick="Logout">Salir</MudButton>
+            </Authorized>
+        </AuthorizeView>
+    </MudAppBar>
+
+    <MudDrawer Open="true" Elevation="1" Variant="DrawerVariant.Mini">
+        <MudNavMenu>
+            @* <MudNavLink Href="/login" Match="NavLinkMatch.All">Login</MudNavLink> *@
+
+            <AuthorizeView Roles="Admin">
+                <MudNavLink Href="/admin/usuarios">Usuarios</MudNavLink>
+            </AuthorizeView>
+
+            <AuthorizeView Roles="Mesero,Admin">
+                <MudNavLink Href="/mesero/mesas">Mesas</MudNavLink>
+            </AuthorizeView>
+
+            <AuthorizeView Roles="Cocinero,Admin">
+                <MudNavLink Href="/cocina/kds">Cocina (KDS)</MudNavLink>
+            </AuthorizeView>
+
+            <AuthorizeView Roles="Caja,Admin">
+                <MudNavLink Href="/caja">Caja</MudNavLink>
+            </AuthorizeView>
+        </MudNavMenu>
+    </MudDrawer>
+
+    <MudMainContent Class="pa-4">
+        @Body
+    </MudMainContent>
+</MudLayout>
+
+@code {
+    private async Task Logout()
+    {
+        await AuthApi.LogoutAsync();
+        Nav.NavigateTo("/login");
+    }
+}

@@ -32,10 +32,10 @@ public class Cuenta : AggregateRoot
 
     public string? ObservacionGeneral { get; private set; }
 
-    public IReadOnlyCollection<Comanda> Comandas => _comandas;
+    public IReadOnlyCollection<Comanda> Comandas => _comandas.AsReadOnly();
     private readonly List<Comanda> _comandas = new();
 
-    public IReadOnlyCollection<Pago> Pagos => _pagos;
+    public IReadOnlyCollection<Pago> Pagos => _pagos.AsReadOnly();
     private readonly List<Pago> _pagos = new();
 
     public void SolicitarCuenta()

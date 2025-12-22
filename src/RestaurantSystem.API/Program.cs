@@ -5,6 +5,7 @@ using Microsoft.IdentityModel.Tokens;
 using RestaurantSystem.API.Middleware;
 using RestaurantSystem.API.OpenApi;
 using RestaurantSystem.API.Security;
+using RestaurantSystem.API.Seed;
 using RestaurantSystem.Application;
 using RestaurantSystem.Application.Abstractions.Security;
 using RestaurantSystem.Infrastructure;
@@ -46,6 +47,9 @@ builder.Services.AddScoped<ExceptionHandlingMiddleware>();
 builder.Services.Configure<JwtOptions>(builder.Configuration.GetSection("Jwt"));
 var jwt = builder.Configuration.GetSection("Jwt").Get<JwtOptions>()
           ?? throw new InvalidOperationException("Configuración Jwt faltante.");
+
+// General JWT setup
+builder.Services.AddScoped<IJwtTokenGenerator, JwtTokenGenerator>();
 
 // Auth
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
@@ -89,12 +93,16 @@ var app = builder.Build();
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {
+    // OpenAPI (Microsoft.AspNetCore.OpenApi)
     app.MapOpenApi("/openapi/{documentName}.json");
     app.UseSwaggerUI(c =>
     {
         c.SwaggerEndpoint("/openapi/v1.json", "RestaurantSystem API v1");
         c.RoutePrefix = "swagger";
     });
+    // Seed data
+    using var scope = app.Services.CreateScope();
+    await DbSeeder.SeedAsync(scope.ServiceProvider);
 }
 
 app.UseMiddleware<ExceptionHandlingMiddleware>();

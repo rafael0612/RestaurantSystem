@@ -15,6 +15,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RestaurantSystem.API", "src
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RestaurantSystem.Shared", "src\RestaurantSystem.Shared\RestaurantSystem.Shared.csproj", "{1E76BD76-945A-462C-9284-53C64FF99124}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RestaurantSystem.Client", "src\RestaurantSystem.Client\RestaurantSystem.Client.csproj", "{9BDBF92E-570E-4FC1-AA09-7F3DFD04A950}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -85,6 +87,18 @@ Global
 		{1E76BD76-945A-462C-9284-53C64FF99124}.Release|x64.Build.0 = Release|Any CPU
 		{1E76BD76-945A-462C-9284-53C64FF99124}.Release|x86.ActiveCfg = Release|Any CPU
 		{1E76BD76-945A-462C-9284-53C64FF99124}.Release|x86.Build.0 = Release|Any CPU
+		{9BDBF92E-570E-4FC1-AA09-7F3DFD04A950}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{9BDBF92E-570E-4FC1-AA09-7F3DFD04A950}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{9BDBF92E-570E-4FC1-AA09-7F3DFD04A950}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{9BDBF92E-570E-4FC1-AA09-7F3DFD04A950}.Debug|x64.Build.0 = Debug|Any CPU
+		{9BDBF92E-570E-4FC1-AA09-7F3DFD04A950}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{9BDBF92E-570E-4FC1-AA09-7F3DFD04A950}.Debug|x86.Build.0 = Debug|Any CPU
+		{9BDBF92E-570E-4FC1-AA09-7F3DFD04A950}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{9BDBF92E-570E-4FC1-AA09-7F3DFD04A950}.Release|Any CPU.Build.0 = Release|Any CPU
+		{9BDBF92E-570E-4FC1-AA09-7F3DFD04A950}.Release|x64.ActiveCfg = Release|Any CPU
+		{9BDBF92E-570E-4FC1-AA09-7F3DFD04A950}.Release|x64.Build.0 = Release|Any CPU
+		{9BDBF92E-570E-4FC1-AA09-7F3DFD04A950}.Release|x86.ActiveCfg = Release|Any CPU
+		{9BDBF92E-570E-4FC1-AA09-7F3DFD04A950}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -95,5 +109,9 @@ Global
 		{E37706C7-2A19-4FF2-B2F7-AD3274C71054} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 		{B8107C87-984F-45E4-B419-D665F6B39251} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 		{1E76BD76-945A-462C-9284-53C64FF99124} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
+		{9BDBF92E-570E-4FC1-AA09-7F3DFD04A950} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {CBCFF07C-DDF1-4E43-A1B1-6D09D0D1C4C6}
 	EndGlobalSection
 EndGlobal

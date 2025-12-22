@@ -1,0 +1,418 @@
+﻿@page "/mesero/cuentas/{CuentaId:guid}"
+
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Mesero,Admin")]
+
+@inject RestaurantSystem.Client.Services.MeseroApi MeseroApi
+@inject RestaurantSystem.Client.Services.ProductosApi ProductosApi
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+@inject NavigationManager Nav
+
+<MudStack Spacing="2">
+    <MudStack Row="true" AlignItems="AlignItems.Center" JustifyContent="JustifyContent.SpaceBetween">
+        <MudButton Variant="Variant.Text" StartIcon="@Icons.Material.Filled.ArrowBack"
+                   OnClick="@(() => Nav.NavigateTo("/mesero/mesas"))">
+            Volver
+        </MudButton>
+
+        <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.Refresh" OnClick="Reload">
+            Actualizar
+        </MudButton>
+    </MudStack>
+
+    @if (_loading)
+    {
+        <MudProgressLinear Indeterminate="true" />
+    }
+    else if (_cuenta is null)
+    {
+        <MudAlert Severity="Severity.Error">No se pudo cargar la cuenta.</MudAlert>
+    }
+    else
+    {
+        <!-- Resumen de cuenta -->
+        <MudPaper Class="pa-4">
+            <MudText Typo="Typo.h6">Cuenta</MudText>
+
+            <MudStack Row="true" Spacing="1" Class="mt-2" Style="flex-wrap:wrap">
+                <MudChip T="string" Variant="Variant.Outlined">@_cuenta.Tipo.ToString()</MudChip>
+                <MudChip T="string" Variant="Variant.Outlined">@_cuenta.Estado.ToString()</MudChip>
+            </MudStack>
+
+            <MudGrid Class="mt-3" Spacing="2">
+                <MudItem xs="12" sm="4">
+                    <MudText Typo="Typo.subtitle2">Total consumido</MudText>
+                    <MudText Typo="Typo.h6">S/ @_cuenta.TotalConsumido</MudText>
+                </MudItem>
+                <MudItem xs="12" sm="4">
+                    <MudText Typo="Typo.subtitle2">Total pagado</MudText>
+                    <MudText Typo="Typo.h6">S/ @_cuenta.TotalPagado</MudText>
+                </MudItem>
+                <MudItem xs="12" sm="4">
+                    <MudText Typo="Typo.subtitle2">Saldo</MudText>
+                    <MudText Typo="Typo.h6">S/ @_cuenta.SaldoPendiente</MudText>
+                </MudItem>
+            </MudGrid>
+        </MudPaper>
+
+        <!-- Acciones de comanda -->
+        <MudPaper Class="pa-4">
+            <MudStack Spacing="2">
+                <MudButton FullWidth="true" Size="Size.Large" Variant="Variant.Filled"
+                           StartIcon="@Icons.Material.Filled.ReceiptLong"
+                           Disabled="@(_creatingComanda || _comandaId is not null)"
+                           OnClick="CrearComanda">
+                    @(_comandaId is null ? "Crear comanda" : "Comanda activa")
+                </MudButton>
+
+                <MudSwitch T="bool" @bind-Checked="_imprimir" Color="Color.Primary" Label="Imprimir comanda" />
+
+                @if (_comandaId is not null)
+                {
+                    <MudDivider />
+
+                    <MudText Typo="Typo.subtitle1">Agregar productos</MudText>
+
+                    <MudTextField @bind-Value="_search"
+                                  Placeholder="Buscar producto..."
+                                  Adornment="Adornment.Start"
+                                  AdornmentIcon="@Icons.Material.Filled.Search"
+                                  Immediate="true" />
+
+                    <!-- Chips tipados -->
+                    <MudChipSet T="string" @bind-SelectedValue="_tipoFiltro" Filter="true" Class="mt-2">
+                        <MudChip T="string" Value="@("__ALL__")" Variant="Variant.Outlined">Todos</MudChip>
+                        <MudChip T="string" Value="@("Menu")" Variant="Variant.Outlined">Menú</MudChip>
+                        <MudChip T="string" Value="@("Bebida")" Variant="Variant.Outlined">Bebida</MudChip>
+                        <MudChip T="string" Value="@("Postre")" Variant="Variant.Outlined">Postre</MudChip>
+                        <MudChip T="string" Value="@("Combo")" Variant="Variant.Outlined">Combo</MudChip>
+                    </MudChipSet>
+
+                    <MudGrid Spacing="2" Class="mt-1">
+                        @foreach (var p in ProductosFiltrados())
+                        {
+                            <MudItem xs="12" sm="6">
+                                <MudCard>
+                                    <MudCardContent Class="pa-3">
+                                        <MudText Typo="Typo.h6">@p.Nombre</MudText>
+                                        <MudText Typo="Typo.subtitle2">S/ @p.Precio</MudText>
+                                        <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Class="mt-1">@p.Tipo</MudChip>
+                                    </MudCardContent>
+                                    <MudCardActions Class="pa-3">
+                                        <MudButton FullWidth="true" Size="Size.Large" Variant="Variant.Filled"
+                                                   OnClick="@(() => AgregarItem(p))">
+                                            Agregar
+                                        </MudButton>
+                                    </MudCardActions>
+                                </MudCard>
+                            </MudItem>
+                        }
+                    </MudGrid>
+
+                    <MudDivider Class="my-3" />
+
+                    <MudButton FullWidth="true" Size="Size.Large" Color="Color.Success" Variant="Variant.Filled"
+                               StartIcon="@Icons.Material.Filled.Send"
+                               Disabled="@(_sending || _cart.Count == 0)"
+                               OnClick="EnviarACocina">
+                        Enviar a cocina
+                    </MudButton>
+
+                    @* @if (_itemsLocal.Count > 0)
+                    {
+                        <MudDivider Class="my-3" />
+                        <MudText Typo="Typo.subtitle1">Ítems (comanda actual)</MudText>
+
+                        <MudList T="ItemLocal" Dense="true">
+                            @foreach (var it in _itemsLocal)
+                            {
+                                <MudListItem T="ItemLocal">
+                                    <MudText>@it.Nombre</MudText>
+                                    <MudSpacer />
+                                    <MudText>x@it.Cantidad</MudText>
+                                </MudListItem>
+                            }
+                        </MudList>
+                    } *@
+                    @if (_cart.Count > 0)
+                    {
+                        <MudDivider Class="my-3" />
+                        <MudText Typo="Typo.subtitle1">Carrito (antes de enviar)</MudText>
+
+                        <MudList T="CartLine" Dense="true">
+                            @foreach (var it in _cart.OrderBy(x => x.Tipo).ThenBy(x => x.Nombre))
+                            {
+                                <MudListItem T="CartLine" Class="py-2">
+                                    <MudStack Spacing="(int)0.5" Style="width:100%">
+                                        <MudStack Row="true" JustifyContent="JustifyContent.SpaceBetween" AlignItems="AlignItems.Center">
+                                            <MudText Typo="Typo.subtitle1">@it.Nombre</MudText>
+                                            <MudText Typo="Typo.subtitle2">S/ @(it.Precio* it.Cantidad)</MudText>
+                                        </MudStack>
+
+                                        <MudStack Row="true" Spacing="1" AlignItems="AlignItems.Center" Style="flex-wrap:wrap">
+                                            <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined">@it.Tipo</MudChip>
+
+                                            <MudButton Size="Size.Small" Variant="Variant.Outlined" OnClick="@(() => DecQty(it))">−</MudButton>
+                                            <MudText Typo="Typo.subtitle2" Class="mx-1">x@it.Cantidad</MudText>
+                                            <MudButton Size="Size.Small" Variant="Variant.Outlined" OnClick="@(() => IncQty(it))">+</MudButton>
+
+                                            <MudButton Size="Size.Small" Variant="Variant.Text" Color="Color.Error"
+                                                       StartIcon="@Icons.Material.Filled.Delete"
+                                                       OnClick="@(() => RemoveLine(it))">
+                                                Quitar
+                                            </MudButton>
+                                        </MudStack>
+
+                                        @if (!string.IsNullOrWhiteSpace(it.Observacion))
+                                        {
+                                            <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                                Obs: @it.Observacion
+                                            </MudText>
+                                        }
+                                    </MudStack>
+                                </MudListItem>
+                            }
+                        </MudList>
+
+                        <MudDivider Class="my-3" />
+
+                        <MudStack Row="true" JustifyContent="JustifyContent.SpaceBetween" AlignItems="AlignItems.Center">
+                            <MudText Typo="Typo.subtitle2">Total</MudText>
+                            <MudText Typo="Typo.h6">S/ @CartTotal()</MudText>
+                        </MudStack>
+                    }
+                }
+            </MudStack>
+        </MudPaper>
+    }
+</MudStack>
+
+@code {
+    [Parameter] public Guid CuentaId { get; set; }
+
+    private bool _loading;
+    private bool _creatingComanda;
+    private bool _sending;
+
+    private CuentaDetalleDto? _cuenta;
+
+    private Guid? _comandaId;
+    private int? _comandaSecuencia;
+
+    private bool _imprimir = true;
+
+    private List<ProductoDto> _productos = new();
+    private string _search = "";
+
+    // Para MudChipSet T="string", usamos string vacío para "Todos"
+    private string _tipoFiltro = "__ALL__";
+
+    private readonly List<CartLine> _cart = new();
+
+    protected override async Task OnInitializedAsync() => await Reload();
+
+    private async Task Reload()
+    {
+        _loading = true;
+        try
+        {
+            _cuenta = await MeseroApi.GetCuentaDetalleAsync(CuentaId);
+            _productos = await ProductosApi.ListActivosAsync();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private IEnumerable<ProductoDto> ProductosFiltrados()
+    {
+        IEnumerable<ProductoDto> q = _productos.Where(p => p.Activo);
+
+        if (!string.IsNullOrWhiteSpace(_tipoFiltro) && _tipoFiltro != "__ALL__")
+            q = q.Where(p => string.Equals(p.Tipo, _tipoFiltro, StringComparison.OrdinalIgnoreCase));
+
+        if (!string.IsNullOrWhiteSpace(_search))
+            q = q.Where(p => p.Nombre.Contains(_search, StringComparison.OrdinalIgnoreCase));
+
+        return q.OrderBy(p => p.Tipo).ThenBy(p => p.Nombre);
+    }
+
+    private async Task CrearComanda()
+    {
+        if (_comandaId is not null) return;
+
+        _creatingComanda = true;
+        try
+        {
+            var resp = await MeseroApi.CrearComandaAsync(CuentaId);
+
+            // Asegúrate que tu record sea: CrearComandaResponse(Guid ComandaId, int NumeroSecuencia)
+            _comandaId = resp.ComandaId;
+            _comandaSecuencia = resp.NumeroSecuencia;
+
+            _cart.Clear();
+            Snackbar.Add($"Comanda #{_comandaSecuencia} creada.", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _creatingComanda = false;
+        }
+    }
+
+    private async Task AgregarItem(ProductoDto p)
+    {
+        if (_comandaId is null) return;
+
+        var parameters = new DialogParameters
+        {
+            ["Producto"] = p
+        };
+
+        var dlg = await DialogService.ShowAsync<AgregarItemDialog>("Agregar ítem", parameters);
+        var result = await dlg.Result;
+        if (result!.Canceled) return;
+
+        var data = (AgregarItemDialog.Result)result.Data!;
+
+        try
+        {
+            // Si el producto ya está en el carrito, sumamos cantidad
+            var existing = _cart.FirstOrDefault(x => x.ProductoId == p.Id && string.Equals(x.Observacion ?? "", data.Observacion ?? "", StringComparison.Ordinal));
+            if (existing is not null)
+            {
+                existing.Cantidad += data.Cantidad;
+                if (!string.IsNullOrWhiteSpace(data.Observacion))
+                    existing.Observacion = data.Observacion;
+            }
+            else
+            {
+                _cart.Add(new CartLine
+                {
+                    ProductoId = p.Id,
+                    Nombre = p.Nombre,
+                    Tipo = p.Tipo,
+                    Precio = p.Precio,
+                    Cantidad = data.Cantidad,
+                    Observacion = string.IsNullOrWhiteSpace(data.Observacion) ? null : data.Observacion.Trim()
+                });
+            }
+            Snackbar.Add("Agregado al carrito.", Severity.Success);
+            // var req = new AgregarItemRequest(
+            //     ProductoId: p.Id,
+            //     Cantidad: data.Cantidad,
+            //     Observacion: data.Observacion
+            // );
+
+            // await MeseroApi.AgregarItemAsync(_comandaId.Value, req);
+
+            // _itemsLocal.Add(new ItemLocal(p.Nombre, data.Cantidad));
+            // Snackbar.Add("Ítem agregado.", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+
+    private async Task EnviarACocina()
+    {
+        //if (_comandaId is null) return;
+        if (_cart.Count == 0)
+        {
+            Snackbar.Add("Tu carrito está vacío.", Severity.Warning);
+            return;
+        }
+
+        // Confirmación
+        var parameters = new DialogParameters
+        {
+            ["TotalItems"] = _cart.Sum(x => x.Cantidad),
+            ["ImprimirInicial"] = _imprimir
+        };
+
+        var dlg = await DialogService.ShowAsync<ConfirmEnviarComandaDialog>("Confirmar envío", parameters);
+        var confirm = await dlg.Result;
+        if (confirm!.Canceled) return;
+
+        var data = (ConfirmEnviarComandaDialog.Result)confirm.Data!;
+        _imprimir = data.Imprimir;
+
+        _sending = true;
+        try
+        {
+            // 1) Crear comanda si no existe
+            if (_comandaId is null)
+            {
+                var resp = await MeseroApi.CrearComandaAsync(CuentaId);
+                _comandaId = resp.ComandaId;
+                _comandaSecuencia = resp.NumeroSecuencia;
+            }
+
+            // 2) Enviar ítems (cada línea del carrito)
+            foreach (var line in _cart)
+            {
+                var req = new AgregarItemRequest(
+                    ProductoId: line.ProductoId,
+                    Cantidad: line.Cantidad,
+                    Observacion: line.Observacion
+                );
+
+                await MeseroApi.AgregarItemAsync(_comandaId.Value, req);
+            }
+
+            // 3) Enviar a cocina
+            await MeseroApi.EnviarACocinaAsync(_comandaId.Value, _imprimir);
+
+            Snackbar.Add("Comanda enviada a cocina.", Severity.Success);
+
+            // MVP: cerramos la edición de comanda después de enviar
+            _comandaId = null;
+            _comandaSecuencia = null;
+            _cart.Clear();
+
+            await Reload();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _sending = false;
+        }
+    }
+    private void IncQty(CartLine line) => line.Cantidad++;
+
+    private void DecQty(CartLine line)
+    {
+        line.Cantidad--;
+        if (line.Cantidad <= 0)
+            _cart.Remove(line);
+    }
+
+    private void RemoveLine(CartLine line) => _cart.Remove(line);
+
+    private decimal CartTotal() => _cart.Sum(x => x.Precio * x.Cantidad);
+
+
+    // private record ItemLocal(string Nombre, int Cantidad);
+    private sealed class CartLine
+    {
+        public Guid ProductoId { get; init; }
+        public string Nombre { get; init; } = default!;
+        public string Tipo { get; init; } = default!;
+        public decimal Precio { get; init; }
+
+        public int Cantidad { get; set; } = 1;
+        public string? Observacion { get; set; }
+    }
+}
