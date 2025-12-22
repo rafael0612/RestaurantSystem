@@ -72,10 +72,10 @@ public class Pago : AggregateRoot
     public bool Anulado { get; private set; }
     public string? MotivoAnulacion { get; private set; }
 
-    public IReadOnlyCollection<PagoMetodo> Metodos => _metodos;
+    public IReadOnlyCollection<PagoMetodo> Metodos => _metodos.AsReadOnly();
     private readonly List<PagoMetodo> _metodos = new();
 
-    public IReadOnlyCollection<PagoDetalle> Detalles => _detalles;
+    public IReadOnlyCollection<PagoDetalle> Detalles => _detalles.AsReadOnly();
     private readonly List<PagoDetalle> _detalles = new();
 
     public void AgregarMetodo(MetodoPago metodo, decimal monto, string? referencia)

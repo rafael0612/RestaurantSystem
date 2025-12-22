@@ -31,19 +31,33 @@ namespace RestaurantSystem.Infrastructure.Persistence.Configurations
                 .HasForeignKey(x => x.CreadaPorUsuarioId)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            // Colecciones privadas (backing fields)
-            b.HasMany<Comanda>("_comandas")
+            // Colecciones privadas (backing fields) Comandas: mapear la navegación pública y usar backing field "_comandas"
+            //b.HasMany<Comanda>("_comandas")
+            //    .WithOne()
+            //    .HasForeignKey(x => x.CuentaId)
+            //    .OnDelete(DeleteBehavior.Restrict);
+            //b.HasMany<Pago>("_pagos")
+            //    .WithOne()
+            //    .HasForeignKey(x => x.CuentaId)
+            //    .OnDelete(DeleteBehavior.Restrict);
+            b.HasMany(x => x.Comandas)
+                .WithOne()
+                .HasForeignKey(c => c.CuentaId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            b.HasMany(x => x.Pagos)
                 .WithOne()
                 .HasForeignKey(x => x.CuentaId)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            b.HasMany<Pago>("_pagos")
-                .WithOne()
-                .HasForeignKey(x => x.CuentaId)
-                .OnDelete(DeleteBehavior.Restrict);
-
-            b.Navigation("_comandas").UsePropertyAccessMode(PropertyAccessMode.Field);
-            b.Navigation("_pagos").UsePropertyAccessMode(PropertyAccessMode.Field);
+            //b.Navigation("_comandas").UsePropertyAccessMode(PropertyAccessMode.Field);
+            //b.Navigation("_pagos").UsePropertyAccessMode(PropertyAccessMode.Field);
+            b.Navigation(x => x.Comandas)
+                .HasField("_comandas")
+                .UsePropertyAccessMode(PropertyAccessMode.Field);
+            b.Navigation(x => x.Pagos)
+                .HasField("_pagos")
+                .UsePropertyAccessMode(PropertyAccessMode.Field);
 
             b.HasIndex(x => new { x.MesaId, x.Estado });
             b.HasIndex(x => x.AperturaEn);

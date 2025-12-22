@@ -1,0 +1,102 @@
+﻿@page "/admin/usuarios"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Admin")]
+@inject RestaurantSystem.Client.Services.UsuariosApi Api
+@inject ISnackbar Snackbar
+
+<MudText Typo="Typo.h5">Usuarios</MudText>
+
+<MudPaper Class="pa-4 mt-4">
+    <MudGrid>
+        <MudItem xs="12" sm="6">
+            <MudTextField @bind-Value="Form.Username" Label="Username" Immediate="true" />
+        </MudItem>
+        <MudItem xs="12" sm="6">
+            <MudTextField @bind-Value="Form.Password" Label="Password" Immediate="true" InputType="InputType.Password" />
+        </MudItem>
+        <MudItem xs="12" sm="6">
+            <MudTextField @bind-Value="Form.Nombre" Label="Nombre" Immediate="true" />
+        </MudItem>
+        <MudItem xs="12" sm="6">
+            <MudTextField @bind-Value="Form.Apellido" Label="Apellido" Immediate="true" />
+        </MudItem>
+        <MudItem xs="12" sm="6">
+            <MudSelect T="RolUsuario" Label="Rol" @bind-Value="Form.Rol">
+                <MudSelectItem Value="RolUsuario.Mesero">Mesero</MudSelectItem>
+                <MudSelectItem Value="RolUsuario.Cocinero">Cocinero</MudSelectItem>
+                <MudSelectItem Value="RolUsuario.Caja">Caja</MudSelectItem>
+                <MudSelectItem Value="RolUsuario.Admin">Admin</MudSelectItem>
+            </MudSelect>
+        </MudItem>
+        <MudItem xs="12">
+            <MudButton Variant="Variant.Filled" OnClick="Crear">Crear Usuario</MudButton>
+        </MudItem>
+    </MudGrid>
+</MudPaper>
+
+<MudPaper Class="pa-4 mt-4">
+    <MudTable Items="_users" Dense="true">
+        <HeaderContent>
+            <MudTh>Username</MudTh>
+            <MudTh>Nombre</MudTh>
+            <MudTh>Rol</MudTh>
+            <MudTh>Activo</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd>@context.Username</MudTd>
+            <MudTd>@context.NombreCompleto</MudTd>
+            <MudTd>@context.Rol</MudTd>
+            <MudTd>@context.Activo</MudTd>
+        </RowTemplate>
+    </MudTable>
+</MudPaper>
+
+@code {
+    private List<UsuarioDto> _users = new();
+    private CrearUsuarioFormModel Form = new();
+    private sealed class CrearUsuarioFormModel
+    {
+        public string Username { get; set; } = "";
+        public string Password { get; set; } = "";
+        public string Nombre { get; set; } = "";
+        public string Apellido { get; set; } = "";
+        public RolUsuario Rol { get; set; } = RolUsuario.Mesero;
+    }
+
+    // private CrearUsuarioRequest Form = new(
+    //     Username: "",
+    //     Password: "",
+    //     Nombre: "",
+    //     Apellido: "",
+    //     Rol: RolUsuario.Mesero
+    // );
+
+    protected override async Task OnInitializedAsync()
+        => await Reload();
+
+    private async Task Reload()
+        => _users = await Api.ListarAsync();
+
+    private async Task Crear()
+    {
+        try
+        {
+            var req = new CrearUsuarioRequest(
+                Username: Form.Username,
+                Password: Form.Password,
+                Nombre: Form.Nombre,
+                Apellido: Form.Apellido,
+                Rol: Form.Rol
+            );
+
+            var id = await Api.CrearAsync(req);
+            Snackbar.Add($"Usuario creado: {id}", Severity.Success);
+
+            Form = new CrearUsuarioFormModel(); // reset form
+            await Reload();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+}

@@ -25,13 +25,22 @@ namespace RestaurantSystem.Infrastructure.Persistence.Configurations
                 .HasForeignKey(x => x.CreadaPorUsuarioId)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            // Detalles (cascade seguro aquí)
-            b.HasMany<ComandaDetalle>("_detalles")
+            // Detalles (cascade seguro aquí) mapear la navegación pública y usar backing field "_detalles"
+            //b.HasMany<ComandaDetalle>("_detalles")
+            //    .WithOne()
+            //    .HasForeignKey(x => x.ComandaId)
+            //    .OnDelete(DeleteBehavior.Cascade);
+
+            //b.Navigation("_detalles").UsePropertyAccessMode(PropertyAccessMode.Field);
+
+            b.HasMany(x => x.Detalles)
                 .WithOne()
                 .HasForeignKey(x => x.ComandaId)
                 .OnDelete(DeleteBehavior.Cascade);
 
-            b.Navigation("_detalles").UsePropertyAccessMode(PropertyAccessMode.Field);
+            b.Navigation(x => x.Detalles)
+                .HasField("_detalles")
+                .UsePropertyAccessMode(PropertyAccessMode.Field);
 
             b.HasIndex(x => new { x.CuentaId, x.CreadaEn });
         }

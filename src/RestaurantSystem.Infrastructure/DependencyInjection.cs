@@ -37,6 +37,7 @@ namespace RestaurantSystem.Infrastructure
             services.AddScoped<IProductoRepository, ProductoRepository>();
             services.AddScoped<IComandaRepository, ComandaRepository>();
             services.AddScoped<ICajaRepository, CajaRepository>();
+            services.AddScoped<IUsuarioRepository, UsuarioRepository>();
 
             // Query repositories
             services.AddScoped<IKdsQueryRepository, KdsQueryRepository>();

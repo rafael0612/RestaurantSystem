@@ -15,6 +15,7 @@ namespace RestaurantSystem.Application.Common
 
         public static D.EstadoCocinaItem? ToDomain(this S.EstadoCocinaItem? v)
             => v.HasValue ? (D.EstadoCocinaItem?)(D.EstadoCocinaItem)(int)v.Value : null;
+        public static D.RolUsuario ToDomain(this S.RolUsuario v) => (D.RolUsuario)(int)v;
 
         // Domain -> Shared
         public static S.TipoCuenta ToShared(this D.TipoCuenta v) => (S.TipoCuenta)(int)v;
@@ -23,5 +24,6 @@ namespace RestaurantSystem.Application.Common
         public static S.EstadoComanda ToShared(this D.EstadoComanda v) => (S.EstadoComanda)(int)v;
         public static S.EstadoCocinaItem ToShared(this D.EstadoCocinaItem v) => (S.EstadoCocinaItem)(int)v;
         public static S.MetodoPago ToShared(this D.MetodoPago v) => (S.MetodoPago)(int)v;
+        public static S.RolUsuario ToShared(this D.RolUsuario v) => (S.RolUsuario)(int)v;
     }
 }

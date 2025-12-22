@@ -1,0 +1,31 @@
+﻿
+<MudDialog>
+    <DialogContent>
+        <MudText Typo="Typo.h6">@Producto.Nombre</MudText>
+        <MudText Typo="Typo.subtitle2">S/ @Producto.Precio</MudText>
+
+        <MudNumericField T="int" @bind-Value="_cantidad" Label="Cantidad" Min="1" Max="50" Class="mt-3" />
+
+        <MudTextField @bind-Value="_obs" Label="Observación (opcional)" Lines="2" Class="mt-3" />
+    </DialogContent>
+
+    <DialogActions>
+        <MudButton Variant="Variant.Text" OnClick="Cancel">Cancelar</MudButton>
+        <MudButton Variant="Variant.Filled" OnClick="Ok">Agregar</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] public IMudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter] public ProductoDto Producto { get; set; } = default!;
+
+    private int _cantidad = 1;
+    private string? _obs;
+
+    private void Cancel() => MudDialog.Cancel();
+
+    private void Ok()
+        => MudDialog.Close(DialogResult.Ok(new Result(_cantidad, _obs)));
+
+    public record Result(int Cantidad, string? Observacion);
+}

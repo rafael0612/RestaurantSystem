@@ -1,0 +1,36 @@
+﻿@using MudBlazor
+
+<MudDialog>
+    <DialogContent>
+        <MudText Typo="Typo.h6">¿Enviar comanda a cocina?</MudText>
+        <MudText Typo="Typo.body2" Class="mt-2">
+            Se enviarán <b>@TotalItems</b> ítems. No podrás editar esta comanda después de enviar (MVP).
+        </MudText>
+
+        <MudSwitch T="bool" @bind-Checked="_imprimir" Color="Color.Primary" Label="Imprimir comanda" Class="mt-3" />
+    </DialogContent>
+
+    <DialogActions>
+        <MudButton Variant="Variant.Text" OnClick="Cancel">Cancelar</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Success" OnClick="Ok">Enviar</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] public IMudDialogInstance MudDialog { get; set; } = default!;
+
+    [Parameter] public int TotalItems { get; set; }
+
+    // valor por defecto
+    [Parameter] public bool ImprimirInicial { get; set; } = true;
+
+    private bool _imprimir;
+
+    protected override void OnInitialized() => _imprimir = ImprimirInicial;
+
+    private void Cancel() => MudDialog.Cancel();
+
+    private void Ok() => MudDialog.Close(DialogResult.Ok(new Result(_imprimir)));
+
+    public record Result(bool Imprimir);
+}

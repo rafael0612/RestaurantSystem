@@ -25,7 +25,7 @@ public class Comanda : AggregateRoot
     public Guid CreadaPorUsuarioId { get; private set; }
     public int NumeroSecuencia { get; private set; }
 
-    public IReadOnlyCollection<ComandaDetalle> Detalles => _detalles;
+    public IReadOnlyCollection<ComandaDetalle> Detalles => _detalles.AsReadOnly();
     private readonly List<ComandaDetalle> _detalles = new();
 
     public void AgregarItem(Guid productoId, int cantidad, decimal precioUnitario, decimal costoUnitarioEstandar, string? observacion)

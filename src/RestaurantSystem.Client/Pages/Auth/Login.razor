@@ -1,0 +1,53 @@
+﻿@page "/login"
+@using RestaurantSystem.Shared.Contracts
+@inject RestaurantSystem.Client.Services.AuthApi AuthApi
+@inject NavigationManager Nav
+@inject ISnackbar Snackbar
+
+<MudPaper Class="pa-6" MaxWidth="420px">
+    <MudText Typo="Typo.h5">Iniciar sesión</MudText>
+
+    <MudTextField @bind-Value="Username" Label="Usuario" Margin="Margin.Dense" />
+    <MudTextField @bind-Value="Password" Label="Password" Margin="Margin.Dense" InputType="InputType.Password" />
+
+    <MudButton Variant="Variant.Filled" OnClick="DoLogin" Disabled="@Loading" Class="mt-4">
+        @(Loading ? "Ingresando..." : "Ingresar")
+    </MudButton>
+</MudPaper>
+
+@code {
+    private string Username = "admin";
+    private string Password = "Admin123*";
+    private bool Loading;
+
+    private async Task DoLogin()
+    {
+        Loading = true;
+        try
+        {
+            var resp = await AuthApi.LoginAsync(new LoginRequest(Username, Password));
+            Snackbar.Add($"Bienvenido {resp.Username} ({resp.Role})", Severity.Success);
+
+            // Redirección por rol
+            var role = resp.Role;
+            var url = role switch
+            {
+                "Admin" => "/admin/usuarios",
+                "Mesero" => "/mesero/mesas",
+                "Cocinero" => "/cocina/kds",
+                "Caja" => "/caja",
+                _ => "/"
+            };
+
+            Nav.NavigateTo(url);
+        }
+        catch
+        {
+            Snackbar.Add("Login inválido.", Severity.Error);
+        }
+        finally
+        {
+            Loading = false;
+        }
+    }
+}

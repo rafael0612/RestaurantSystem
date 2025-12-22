@@ -12,14 +12,16 @@ namespace RestaurantSystem.Infrastructure.Persistence.Configurations
 
             b.HasKey(x => x.Id);
 
-            b.Property(x => x.Nombre).HasMaxLength(120).IsRequired();
-            b.Property(x => x.Username).HasMaxLength(60).IsRequired();
+            b.Property(x => x.Nombre).HasMaxLength(60).IsRequired();
+            b.Property(x => x.Apellido).HasMaxLength(60).IsRequired();
+            b.Property(x => x.Username).HasMaxLength(120).IsRequired();
+            b.Property(x => x.NombreCompleto).HasMaxLength(150).IsRequired();
             b.Property(x => x.PasswordHash).HasMaxLength(250).IsRequired();
 
             b.HasIndex(x => x.Username).IsUnique();
 
             b.Property(x => x.Activo).IsRequired();
-            b.Property(x => x.Rol).IsRequired();
+            b.Property(x => x.Rol).HasConversion<int>().IsRequired();
 
             // RowVersion se configura globalmente por convención
         }
