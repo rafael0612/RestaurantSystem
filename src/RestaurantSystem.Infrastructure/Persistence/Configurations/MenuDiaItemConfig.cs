@@ -11,6 +11,8 @@ namespace RestaurantSystem.Infrastructure.Persistence.Configurations
             b.ToTable("MenuDiaItem");
             b.HasKey(x => x.Id);
 
+            b.Property(x => x.Id).ValueGeneratedNever();
+
             b.Property(x => x.MenuDiaId).IsRequired();
             b.Property(x => x.ProductoId).IsRequired();
 

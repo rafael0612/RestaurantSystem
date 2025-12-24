@@ -153,7 +153,7 @@
                                             <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined">@it.Tipo</MudChip>
 
                                             <MudButton Size="Size.Small" Variant="Variant.Outlined" OnClick="@(() => DecQty(it))">−</MudButton>
-                                            <MudText Typo="Typo.subtitle2" Class="mx-1">x@it.Cantidad</MudText>
+                                            <MudText Typo="Typo.subtitle2" Class="mx-1">@it.Cantidad</MudText>
                                             <MudButton Size="Size.Small" Variant="Variant.Outlined" OnClick="@(() => IncQty(it))">+</MudButton>
 
                                             <MudButton Size="Size.Small" Variant="Variant.Text" Color="Color.Error"

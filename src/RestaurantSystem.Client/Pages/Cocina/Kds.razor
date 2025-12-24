@@ -1,0 +1,575 @@
+﻿
+@* @page "/cocina/kds"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Cocinero,Admin")]
+
+@inject RestaurantSystem.Client.Services.CocinaApi CocinaApi
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+
+<MudStack Spacing="2">
+    <MudStack Row="true" AlignItems="AlignItems.Center" JustifyContent="JustifyContent.SpaceBetween">
+        <MudText Typo="Typo.h5">Cocina (KDS)</MudText>
+        <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.Refresh" OnClick="Reload">
+            Actualizar
+        </MudButton>
+    </MudStack>
+
+    <!-- Filtros + AutoRefresh (móvil) -->
+    <MudPaper Class="pa-3">
+        <MudText Typo="Typo.subtitle2">Filtro por estado</MudText>
+
+        <MudChipSet T="EstadoCocinaItem?" @bind-SelectedValue="_estadoFiltro" Filter="true" Class="mt-2">
+            <MudChip T="EstadoCocinaItem?" Value="@((EstadoCocinaItem?)null)" Variant="Variant.Outlined">Todos</MudChip>
+            <MudChip T="EstadoCocinaItem?" Value="@EstadoCocinaItem.Pendiente" Variant="Variant.Outlined">Pendiente</MudChip>
+            <MudChip T="EstadoCocinaItem?" Value="@EstadoCocinaItem.Preparando" Variant="Variant.Outlined">Preparando</MudChip>
+            <MudChip T="EstadoCocinaItem?" Value="@EstadoCocinaItem.Listo" Variant="Variant.Outlined">Listo</MudChip>
+        </MudChipSet>
+
+        <MudDivider Class="my-3" />
+
+        <MudStack Row="true" AlignItems="AlignItems.Center" JustifyContent="JustifyContent.SpaceBetween">
+            <MudSwitch T="bool" @bind-Checked="AutoRefresh" Color="Color.Primary" Label="Auto refresh" />
+            <MudSelect T="int" Dense="true" Style="min-width:140px" Label="Segundos" Disabled="@(!_autoRefresh)"
+                       @bind-Value="RefreshSeconds">
+                <MudSelectItem Value="5">5</MudSelectItem>
+                <MudSelectItem Value="10">10</MudSelectItem>
+                <MudSelectItem Value="15">15</MudSelectItem>
+                <MudSelectItem Value="30">30</MudSelectItem>
+            </MudSelect>
+        </MudStack>
+    </MudPaper>
+
+    @if (_loading)
+    {
+        <MudProgressLinear Indeterminate="true" />
+    }
+    else if (_cards.Count == 0)
+    {
+        <MudAlert Severity="Severity.Info">
+            No hay comandas para mostrar.
+        </MudAlert>
+    }
+    else
+    {
+        <!-- Cards por comanda -->
+        <MudGrid Spacing="2">
+            @foreach (var c in _cards.OrderBy(x => x.CreadaEn))
+            {
+                <MudItem xs="12" sm="6" md="4">
+                    <MudCard>
+                        <MudCardContent Class="pa-3">
+                            <MudStack Row="true" AlignItems="AlignItems.Center" JustifyContent="JustifyContent.SpaceBetween">
+                                <MudText Typo="Typo.h6">@c.Origen</MudText>
+                                <MudChip T="string" Variant="Variant.Outlined">@c.Estado</MudChip>
+                            </MudStack>
+
+                            <MudText Typo="Typo.caption" Class="mt-1">
+                                @FormatAge(c.CreadaEn)
+                            </MudText>
+
+                            <MudDivider Class="my-2" />
+
+                            <MudList T="KdsItemDto" Dense="true">
+                                @foreach (var it in c.Items)
+                                {
+                                    <MudListItem T="KdsItemDto" Class="py-2">
+                                        <MudStack Spacing="(int)0.5" Style="width:100%">
+                                            <MudStack Row="true" AlignItems="AlignItems.Center" JustifyContent="JustifyContent.SpaceBetween">
+                                                <MudText Typo="Typo.subtitle1">@it.Producto</MudText>
+                                                <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined">
+                                                    @it.Cantidad
+                                                </MudChip>
+                                            </MudStack>
+
+                                            @if (!string.IsNullOrWhiteSpace(it.Observacion))
+                                            {
+                                                <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                                    Obs: @it.Observacion
+                                                </MudText>
+                                            }
+
+                                            <MudStack Row="true" Spacing="1" AlignItems="AlignItems.Center" Class="mt-1" Style="flex-wrap:wrap">
+                                                <MudChip T="EstadoCocinaItem" Variant="Variant.Outlined">
+                                                    @it.Estado.ToString()
+                                                </MudChip>
+
+                                                @if (it.Estado == EstadoCocinaItem.Pendiente)
+                                                {
+                                                    <MudButton Size="Size.Large" Variant="Variant.Filled"
+                                                               OnClick="@(() => SetEstado(it.ComandaDetalleId, EstadoCocinaItem.Preparando))">
+                                                        Preparando
+                                                    </MudButton>
+                                                }
+                                                else if (it.Estado == EstadoCocinaItem.Preparando)
+                                                {
+                                                    <MudButton Size="Size.Large" Variant="Variant.Filled" Color="Color.Success"
+                                                               OnClick="@(() => ConfirmListo(it.ComandaDetalleId))">
+                                                        Listo
+                                                    </MudButton>
+                                                }
+                                                else if (it.Estado == EstadoCocinaItem.Listo)
+                                                {
+                                                    <MudChip T="string" Color="Color.Success" Variant="Variant.Filled">
+                                                        OK
+                                                    </MudChip>
+                                                }
+                                            </MudStack>
+                                        </MudStack>
+                                    </MudListItem>
+                                }
+                            </MudList>
+                        </MudCardContent>
+                    </MudCard>
+                </MudItem>
+            }
+        </MudGrid>
+    }
+</MudStack>
+
+@code {
+    private bool _loading;
+    private List<KdsCardDto> _cards = new();
+
+    private EstadoCocinaItem? _estadoFiltro = null;
+
+    private bool _autoRefresh = false;
+    private int _refreshSeconds = 10;
+
+    private PeriodicTimer? _timer;
+    private CancellationTokenSource? _timerCts;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Reload();
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        // Cada vez que cambie la ruta/params, refresca
+        await Reload();
+    }
+
+    private async Task Reload()
+    {
+        _loading = true;
+        try
+        {
+            _cards = await CocinaApi.GetKdsAsync(_estadoFiltro);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    // Auto refresh: inicia/detiene cuando el usuario cambia el switch o el intervalo
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+            await SyncAutoRefreshAsync();
+    }
+
+    private async Task SyncAutoRefreshAsync()
+    {
+        StopTimer();
+
+        if (!_autoRefresh) return;
+
+        _timerCts = new CancellationTokenSource();
+        _timer = new PeriodicTimer(TimeSpan.FromSeconds(_refreshSeconds));
+
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                while (await _timer.WaitForNextTickAsync(_timerCts.Token))
+                {
+                    await InvokeAsync(Reload);
+                }
+            }
+            catch { /* ignore */ }
+        });
+    }
+
+    private void StopTimer()
+    {
+        try { _timerCts?.Cancel(); } catch { }
+        _timer?.Dispose();
+        _timer = null;
+        _timerCts?.Dispose();
+        _timerCts = null;
+    }
+
+    // Detecta cambios del switch/intervalo (móvil-friendly)
+    private async Task OnAutoRefreshChanged(bool _)
+        => await SyncAutoRefreshAsync();
+
+    private async Task OnRefreshSecondsChanged(int _)
+        => await SyncAutoRefreshAsync();
+
+    // Hooks para MudBlazor binding
+    private bool AutoRefresh
+    {
+        get => _autoRefresh;
+        set
+        {
+            if (_autoRefresh == value) return;
+            _autoRefresh = value;
+            _ = InvokeAsync(SyncAutoRefreshAsync);
+        }
+    }
+
+    private int RefreshSeconds
+    {
+        get => _refreshSeconds;
+        set
+        {
+            if (_refreshSeconds == value) return;
+            _refreshSeconds = value;
+            if (_autoRefresh) _ = InvokeAsync(SyncAutoRefreshAsync);
+        }
+    }
+
+    private async Task SetEstado(Guid detalleId, EstadoCocinaItem estado)
+    {
+        try
+        {
+            await CocinaApi.CambiarEstadoItemAsync(detalleId, estado);
+            Snackbar.Add("Estado actualizado.", Severity.Success);
+            await Reload();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+
+    private async Task ConfirmListo(Guid detalleId)
+    {
+        var dlg = await DialogService.ShowAsync<ConfirmListoDialog>("Confirmar");
+        var result = await dlg.Result;
+        if (result.Canceled) return;
+
+        await SetEstado(detalleId, EstadoCocinaItem.Listo);
+    }
+
+    private static string FormatAge(DateTime creadaEnUtc)
+    {
+        var age = DateTime.UtcNow - creadaEnUtc;
+        if (age.TotalMinutes < 1) return "Hace segundos";
+        if (age.TotalMinutes < 60) return $"Hace {Math.Floor(age.TotalMinutes)} min";
+        return $"Hace {Math.Floor(age.TotalHours)} h";
+    }
+
+    public void Dispose()
+    {
+        StopTimer();
+    }
+} *@
+
+
+
+@page "/cocina/kds"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Cocinero,Admin")]
+
+@inject RestaurantSystem.Client.Services.CocinaApi CocinaApi
+@inject ISnackbar Snackbar
+@inject IDialogService DialogService
+
+<MudStack Spacing="2">
+
+    <!-- Header -->
+    <MudStack Row="true" AlignItems="AlignItems.Center" JustifyContent="JustifyContent.SpaceBetween">
+        <MudText Typo="Typo.h5">Cocina (KDS)</MudText>
+
+        <MudStack Row="true" Spacing="1" AlignItems="AlignItems.Center">
+            <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.Refresh" OnClick="Reload">
+                Actualizar
+            </MudButton>
+        </MudStack>
+    </MudStack>
+
+    <!-- Filtros + Auto refresh -->
+    <MudPaper Class="pa-3">
+        <MudStack Spacing="2">
+            <MudText Typo="Typo.subtitle2">Filtro por estado</MudText>
+
+            <!-- ChipSet tipado -->
+            <MudChipSet T="EstadoCocinaItem?" @bind-SelectedValue="_estadoFiltro" Filter="true" Mandatory="false" Class="d-flex flex-wrap">
+                <MudChip T="EstadoCocinaItem?" Value="@((EstadoCocinaItem?)null)" Variant="Variant.Outlined">Todos</MudChip>
+                <MudChip T="EstadoCocinaItem?" Value="@EstadoCocinaItem.Pendiente" Variant="Variant.Outlined">Pendiente</MudChip>
+                <MudChip T="EstadoCocinaItem?" Value="@EstadoCocinaItem.Preparando" Variant="Variant.Outlined">Preparando</MudChip>
+                <MudChip T="EstadoCocinaItem?" Value="@EstadoCocinaItem.Listo" Variant="Variant.Outlined">Listo</MudChip>
+            </MudChipSet>
+
+            <MudDivider />
+
+            <MudStack Row="true" Spacing="2" AlignItems="AlignItems.Center" Style="flex-wrap:wrap">
+                <MudSwitch T="bool" @bind-Checked="_autoRefresh" Color="Color.Primary" Label="Auto refresh" />
+                <MudSelect T="int" Dense="true" Label="Segundos" @bind-Value="_refreshSeconds" Disabled="@(!_autoRefresh)" Style="min-width:150px">
+                    <MudSelectItem T="int" Value="5">5</MudSelectItem>
+                    <MudSelectItem T="int" Value="10">10</MudSelectItem>
+                    <MudSelectItem T="int" Value="15">15</MudSelectItem>
+                    <MudSelectItem T="int" Value="20">20</MudSelectItem>
+                </MudSelect>
+
+                <MudText Typo="Typo.caption" Color="Color.Secondary">
+                    @( _lastUpdated is null ? "" : $"Última actualización: {_lastUpdated:HH:mm:ss}" )
+                </MudText>
+            </MudStack>
+        </MudStack>
+    </MudPaper>
+
+    @if (_loading)
+    {
+        <MudProgressLinear Indeterminate="true" />
+    }
+    else if (_cards.Count == 0)
+    {
+        <MudAlert Severity="Severity.Info">No hay comandas en cocina.</MudAlert>
+    }
+    else
+    {
+        <!-- Cards por comanda -->
+        <MudGrid Spacing="2">
+            @foreach (var card in _cards.OrderBy(c => c.CreadaEn))
+            {
+                <MudItem xs="12" sm="6" md="4">
+                    <MudCard Class="pa-2">
+                        <MudCardContent>
+                            <MudStack Spacing="1">
+
+                                <MudStack Row="true" AlignItems="AlignItems.Center" JustifyContent="JustifyContent.SpaceBetween">
+                                    <MudText Typo="Typo.h6">@card.Origen</MudText>
+                                    <MudChip T="string" Variant="Variant.Outlined" Size="Size.Small">
+                                        @card.Estado.ToString()
+                                    </MudChip>
+                                </MudStack>
+
+                                <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                    @card.CreadaEn.ToLocalTime().ToString("HH:mm:ss")
+                                </MudText>
+
+                                <MudDivider Class="my-2" />
+
+                                @{
+                                    var items = ItemsFiltrados(card.Items);
+                                }
+
+                                @if (items.Count == 0)
+                                {
+                                    <MudText Typo="Typo.body2" Color="Color.Secondary">Sin ítems para este filtro.</MudText>
+                                }
+                                else
+                                {
+                                    <MudStack Spacing="2">
+                                        @foreach (var it in items)
+                                        {
+                                            <MudPaper Class="pa-2" Elevation="0" Style="border:1px solid rgba(0,0,0,.08); border-radius:12px;">
+                                                <MudStack Spacing="1">
+
+                                                    <MudStack Row="true" AlignItems="AlignItems.Center" JustifyContent="JustifyContent.SpaceBetween">
+                                                        <MudText Typo="Typo.subtitle1">@it.Producto</MudText>
+                                                        <MudChip T="string" Variant="Variant.Filled" Color="@ChipColor(it.Estado)" Size="Size.Small">
+                                                            @it.Estado.ToString()
+                                                        </MudChip>
+                                                    </MudStack>
+
+                                                    <MudStack Row="true" Spacing="1" AlignItems="AlignItems.Center" Style="flex-wrap:wrap">
+                                                        <MudText Typo="Typo.body2"><b>@it.Cantidad</b></MudText>
+                                                        @if (!string.IsNullOrWhiteSpace(it.Observacion))
+                                                        {
+                                                            <MudText Typo="Typo.body2" Color="Color.Secondary">• @it.Observacion</MudText>
+                                                        }
+                                                    </MudStack>
+
+                                                    <!-- Botones grandes -->
+                                                    <MudStack Row="true" Spacing="1" Class="mt-2">
+                                                        <MudButton FullWidth="true"
+                                                                   Size="Size.Large"
+                                                                   Variant="Variant.Filled"
+                                                                   Color="Color.Primary"
+                                                                   Disabled="@(_busyItemId == it.ComandaDetalleId || it.Estado != EstadoCocinaItem.Pendiente)"
+                                                                   OnClick="@(() => CambiarEstado(it.ComandaDetalleId, EstadoCocinaItem.Preparando))">
+                                                            Preparando
+                                                        </MudButton>
+
+                                                        <MudButton FullWidth="true"
+                                                                   Size="Size.Large"
+                                                                   Variant="Variant.Filled"
+                                                                   Color="Color.Success"
+                                                                   Disabled="@(_busyItemId == it.ComandaDetalleId || it.Estado == EstadoCocinaItem.Listo || it.Estado == EstadoCocinaItem.Anulado)"
+                                                                   OnClick="@(() => ConfirmarYMarcarListo(it))">
+                                                            Listo
+                                                        </MudButton>
+                                                    </MudStack>
+                                                </MudStack>
+                                            </MudPaper>
+                                        }
+                                    </MudStack>
+                                }
+                            </MudStack>
+                        </MudCardContent>
+                    </MudCard>
+                </MudItem>
+            }
+        </MudGrid>
+    }
+</MudStack>
+
+@code {
+    private bool _loading;
+    private List<KdsCardDto> _cards = new();
+
+    private EstadoCocinaItem? _estadoFiltro = null;
+
+    private bool _autoRefresh = false;
+    private int _refreshSeconds = 10;
+
+    private DateTime? _lastUpdated;
+
+    private Guid? _busyItemId;
+
+    private CancellationTokenSource? _loopCts;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Reload();
+        StartOrStopLoop();
+    }
+
+    protected override void OnParametersSet()
+    {
+        // por si navegas de nuevo
+        StartOrStopLoop();
+    }
+
+    private async Task Reload()
+    {
+        _loading = true;
+        try
+        {
+            _cards = await CocinaApi.GetKdsAsync(_estadoFiltro);
+            _lastUpdated = DateTime.Now;
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private List<KdsItemDto> ItemsFiltrados(List<KdsItemDto> items)
+    {
+        if (_estadoFiltro is null) return items;
+        return items.Where(i => i.Estado == _estadoFiltro.Value).ToList();
+    }
+
+    private Color ChipColor(EstadoCocinaItem estado) => estado switch
+    {
+        EstadoCocinaItem.Pendiente => Color.Warning,
+        EstadoCocinaItem.Preparando => Color.Info,
+        EstadoCocinaItem.Listo => Color.Success,
+        EstadoCocinaItem.Entregado => Color.Default,
+        EstadoCocinaItem.Anulado => Color.Error,
+        _ => Color.Default
+    };
+
+    private async Task CambiarEstado(Guid detalleId, EstadoCocinaItem nuevoEstado)
+    {
+        _busyItemId = detalleId;
+        try
+        {
+            await CocinaApi.CambiarEstadoItemAsync(detalleId, nuevoEstado);
+            await Reload();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _busyItemId = null;
+        }
+    }
+
+    private async Task ConfirmarYMarcarListo(KdsItemDto it)
+    {
+        // Confirmación simple (sin dialog custom)
+        var ok = await DialogService.ShowMessageBox(
+            title: "Confirmar",
+            markupMessage: (MarkupString)$"¿Marcar <b>{it.Producto}</b> como <b>Listo</b>?",
+            yesText: "Sí, listo",
+            cancelText: "Cancelar");
+
+        if (ok != true) return;
+
+        await CambiarEstado(it.ComandaDetalleId, EstadoCocinaItem.Listo);
+    }
+
+    private void StartOrStopLoop()
+    {
+        _loopCts?.Cancel();
+        _loopCts = null;
+
+        if (!_autoRefresh) return;
+
+        _loopCts = new CancellationTokenSource();
+        _ = AutoLoopAsync(_loopCts.Token);
+    }
+
+    private async Task AutoLoopAsync(CancellationToken ct)
+    {
+        try
+        {
+            while (!ct.IsCancellationRequested)
+            {
+                await Task.Delay(TimeSpan.FromSeconds(_refreshSeconds), ct);
+                await InvokeAsync(Reload);
+            }
+        }
+        catch (TaskCanceledException)
+        {
+            // ok
+        }
+    }
+
+    // Cuando cambie el filtro o auto refresh, reacciona
+    private EstadoCocinaItem? EstadoFiltro
+    {
+        get => _estadoFiltro;
+        set
+        {
+            if (_estadoFiltro == value) return;
+            _estadoFiltro = value;
+            _ = Reload();
+        }
+    }
+
+    private bool AutoRefresh
+    {
+        get => _autoRefresh;
+        set
+        {
+            if (_autoRefresh == value) return;
+            _autoRefresh = value;
+            StartOrStopLoop();
+        }
+    }
+
+    // bindings
+    // (en MudBlazor binding directo va a los campos; si prefieres, reemplaza en el markup @bind-SelectedValue="_estadoFiltro" por @bind-SelectedValue="EstadoFiltro"
+    //  y @bind-Checked="_autoRefresh" por @bind-Checked="AutoRefresh")
+    public void Dispose()
+    {
+        _loopCts?.Cancel();
+        _loopCts?.Dispose();
+    }
+} 

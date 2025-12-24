@@ -9,9 +9,5 @@
         /// </summary>
         public DateTime CreadoEn { get; protected set; } = DateTime.UtcNow;
 
-        /// <summary>
-        /// Concurrencia optimista. Se configura como ROWVERSION/TIMESTAMP en EF Core.
-        /// </summary>
-        public byte[] RowVersion { get; protected set; } = Array.Empty<byte>();
     }
 }

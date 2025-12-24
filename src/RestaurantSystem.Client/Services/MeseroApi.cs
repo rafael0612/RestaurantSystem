@@ -49,7 +49,8 @@ namespace RestaurantSystem.Client.Services
 
         public async Task EnviarACocinaAsync(Guid comandaId, bool imprimir, CancellationToken ct = default)
         {
-            var resp = await _http.PostAsync($"api/mesero/comandas/{comandaId}/enviar?imprimir={imprimir}", null, ct);
+            var req = new EnviarACocinaRequest(ImprimirComanda: imprimir);
+            var resp = await _http.PostAsJsonAsync($"api/mesero/comandas/{comandaId}/enviar", req, ct);
             resp.EnsureSuccessStatusCode();
         }
     }
