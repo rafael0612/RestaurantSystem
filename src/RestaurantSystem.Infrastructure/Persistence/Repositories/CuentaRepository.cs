@@ -17,12 +17,19 @@ namespace RestaurantSystem.Infrastructure.Persistence.Repositories
             if (includeDetails)
             {
                 // OJO: navegaciones por backing fields (string include)
+                //q = q
+                //    .Include("_comandas")
+                //    .Include("_comandas._detalles")
+                //    .Include("_pagos")
+                //    .Include("_pagos._detalles")
+                //    .Include("_pagos._metodos");
                 q = q
-                    .Include("_comandas")
-                    .Include("_comandas._detalles")
-                    .Include("_pagos")
-                    .Include("_pagos._detalles")
-                    .Include("_pagos._metodos");
+                    .Include(c => c.Comandas)
+                        .ThenInclude(cmd => cmd.Detalles)
+                    .Include(c => c.Pagos)
+                        .ThenInclude(p => p.Detalles)
+                    .Include(c => c.Pagos)
+                        .ThenInclude(p => p.Metodos);
             }
 
             return await q.FirstOrDefaultAsync(c => c.Id == cuentaId, ct);

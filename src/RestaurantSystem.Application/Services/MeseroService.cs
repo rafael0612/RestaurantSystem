@@ -5,6 +5,7 @@ using RestaurantSystem.Shared.Contracts;
 using RestaurantSystem.Domain.Entities;
 using D = RestaurantSystem.Domain.Enums;
 using S = RestaurantSystem.Shared.Enums;
+using Microsoft.EntityFrameworkCore;
 
 namespace RestaurantSystem.Application.Services
 {
@@ -122,13 +123,27 @@ namespace RestaurantSystem.Application.Services
 
             if (!producto.Activo) throw new InvalidOperationException("Producto inactivo.");
 
-            comanda.AgregarItem(producto.Id, req.Cantidad, producto.Precio, producto.CostoEstandar, req.Observacion);
+            // devuelve la entidad (no solo el Id)
+            var detalle = comanda.AgregarItem(producto.Id, req.Cantidad, producto.Precio, producto.CostoEstandar, req.Observacion);            
 
-            await _uow.SaveChangesAsync(ct);
+            //await _uow.SaveChangesAsync(ct);
+            try
+            {
+                // fuerza INSERT (Added) aunque EF “quiera” UPDATE
+                await _comandas.AddDetalleAsync(detalle, ct);
+                await _uow.SaveChangesAsync(ct);
+                return detalle.Id;
+            }
+            catch (DbUpdateConcurrencyException ex)
+            {
+                var names = ex.Entries.Select(e => e.Metadata.Name).ToArray();
+                throw new InvalidOperationException(
+                    $"Conflicto de concurrencia al guardar. Entidades: {string.Join(", ", names)}", ex);
+            }
 
             // El último detalle creado (en EF se guardará con Id)
-            var last = comanda.Detalles.Last();
-            return last.Id;
+            //var last = comanda.Detalles.Last();
+            //return last.Id;            
         }
 
         public async Task EnviarComandaACocinaAsync(Guid comandaId, bool imprimir, CancellationToken ct)

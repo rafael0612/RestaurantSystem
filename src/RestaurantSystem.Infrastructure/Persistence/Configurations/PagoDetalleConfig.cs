@@ -11,6 +11,8 @@ namespace RestaurantSystem.Infrastructure.Persistence.Configurations
             b.ToTable("PagoDetalle");
             b.HasKey(x => x.Id);
 
+            b.Property(x => x.Id).ValueGeneratedNever();
+
             b.Property(x => x.PagoId).IsRequired();
             b.Property(x => x.ComandaDetalleId).IsRequired();
 

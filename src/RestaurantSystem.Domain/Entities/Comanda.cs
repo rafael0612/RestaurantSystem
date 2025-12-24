@@ -28,7 +28,7 @@ public class Comanda : AggregateRoot
     public IReadOnlyCollection<ComandaDetalle> Detalles => _detalles.AsReadOnly();
     private readonly List<ComandaDetalle> _detalles = new();
 
-    public void AgregarItem(Guid productoId, int cantidad, decimal precioUnitario, decimal costoUnitarioEstandar, string? observacion)
+    public ComandaDetalle AgregarItem(Guid productoId, int cantidad, decimal precioUnitario, decimal costoUnitarioEstandar, string? observacion)
     {
         if (Estado != EstadoComanda.Abierta)
             throw new DomainException("Solo se puede agregar items a una comanda Abierta.");
@@ -37,14 +37,16 @@ public class Comanda : AggregateRoot
         Guard.AgainstNegative(precioUnitario, "PrecioUnitario inválido.");
         Guard.AgainstNegative(costoUnitarioEstandar, "CostoUnitarioEstandar inválido.");
 
-        _detalles.Add(new ComandaDetalle(
+        var det = new ComandaDetalle(
             comandaId: Id,
             productoId: productoId,
             cantidad: cantidad,
             precioUnitario: precioUnitario,
             costoUnitarioEstandar: costoUnitarioEstandar,
             observacion: observacion
-        ));
+        );
+        _detalles.Add(det);
+        return det;
     }
 
     public void EnviarACocina()
