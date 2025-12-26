@@ -77,12 +77,60 @@
                 Abrir cuenta para llevar
             </MudButton>
         </MudPaper>
+        
+        <MudGrid Spacing="2">
+            @foreach (var m in _cuentasLlevarActivas.OrderBy(x => x.AperturaEn))
+            {
+                <MudItem xs="12" sm="6">
+                    <MudCard Class="pa-2">
+                        <MudCardContent>
+                            <MudText Typo="Typo.h6">Para llevar</MudText>
+
+                            <MudStack Row="true" Spacing="1" Class="mt-2">
+                                <MudChip T="string" Size="Size.Medium" Variant="Variant.Outlined">@m.Estado.ToString()</MudChip>
+                                @if (m.CuentaActivaId is not null)
+                                {
+                                    <MudChip T="string" Size="Size.Medium" Color="Color.Success" Variant="Variant.Filled">Cuenta activa</MudChip>
+                                }
+                                else
+                                {
+                                    <MudChip T="string" Size="Size.Medium" Color="Color.Default" Variant="Variant.Outlined">Libre</MudChip>
+                                }
+                            </MudStack>
+                        </MudCardContent>
+
+                        <MudCardActions Class="pa-2">
+                            @if (m.CuentaActivaId is not null)
+                            {
+                                <MudButton FullWidth="true"
+                                           Variant="Variant.Filled"
+                                           Size="Size.Large"
+                                           OnClick="@(() => IrCuenta(m.CuentaActivaId!.Value))">
+                                    Ver cuenta
+                                </MudButton>
+                            }
+                            else
+                            {
+                                <MudButton FullWidth="true"
+                                           Variant="Variant.Filled"
+                                           Color="Color.Primary"
+                                           Size="Size.Large"
+                                           OnClick="@(() => AbrirCuentaLlevar())">
+                                    Abrir cuenta
+                                </MudButton>
+                            }
+                        </MudCardActions>
+                    </MudCard>
+                </MudItem>
+            }
+        </MudGrid>
     }
 </MudStack>
 
 @code {
     private bool _loading;
     private List<MesaResumenDto> _mesas = new();
+    private List<CuentasActivasParaLlevarDto> _cuentasLlevarActivas = new();
 
     protected override async Task OnInitializedAsync() => await Reload();
 
@@ -92,6 +140,7 @@
         try
         {
             _mesas = await MeseroApi.GetMesasAsync();
+            _cuentasLlevarActivas = await MeseroApi.GetCuentasActivasParaLlevarAsync();
         }
         catch (Exception ex)
         {

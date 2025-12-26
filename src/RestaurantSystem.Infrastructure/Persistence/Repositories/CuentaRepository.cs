@@ -42,6 +42,13 @@ namespace RestaurantSystem.Infrastructure.Persistence.Repositories
                 .OrderByDescending(c => c.AperturaEn)
                 .FirstOrDefaultAsync(ct);
         }
+        public Task<List<Cuenta>> GetAllCuentasActivasParaLlevarAsync(CancellationToken ct)
+        {
+            return _db.Cuentas
+                .Where(c => c.Tipo == TipoCuenta.Llevar && (c.Estado == EstadoCuenta.Abierta || c.Estado == EstadoCuenta.PorCobrar))
+                .OrderBy(c => c.AperturaEn)
+                .ToListAsync(ct);
+        }
 
         public Task AddAsync(Cuenta cuenta, CancellationToken ct)
         {

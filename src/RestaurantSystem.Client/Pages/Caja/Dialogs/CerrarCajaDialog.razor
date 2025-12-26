@@ -1,0 +1,50 @@
+﻿
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <DialogContent>
+        <MudText Typo="Typo.h6">Cerrar caja</MudText>
+
+        <MudNumericField T="decimal"
+                         Label="Monto contado"
+                         @bind-Value="_montoContado"
+                         Min="0"
+                         Immediate="true"
+                         Variant="Variant.Outlined"
+                         Class="mt-3"
+                         Adornment="Adornment.Start"
+                         AdornmentText="S/" />
+
+        <MudTextField Label="Motivo diferencia (opcional)"
+                      @bind-Value="_motivo"
+                      Variant="Variant.Outlined"
+                      Lines="2"
+                      Class="mt-3" />
+    </DialogContent>
+
+    <DialogActions>
+        <MudButton Variant="Variant.Text" OnClick="Cancel">Cancelar</MudButton>
+        <MudButton Color="Color.Error" Variant="Variant.Filled" OnClick="Ok">Cerrar caja</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] public IMudDialogInstance MudDialog { get; set; } = default!;
+
+    private decimal _montoContado;
+    private string? _motivo;
+
+    private void Cancel() => MudDialog.Cancel();
+
+    private void Ok()
+    {
+        if (_montoContado < 0)
+        {
+            Snackbar.Add("Monto contado no puede ser negativo.", Severity.Error);
+            return;
+        }
+
+        MudDialog.Close(DialogResult.Ok(new CerrarCajaRequest(_montoContado,
+            string.IsNullOrWhiteSpace(_motivo) ? null : _motivo.Trim())));
+    }
+}

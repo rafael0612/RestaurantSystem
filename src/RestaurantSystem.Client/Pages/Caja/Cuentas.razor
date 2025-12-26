@@ -1,0 +1,78 @@
+﻿@page "/caja/cuentas"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Caja,Admin")]
+
+@inject RestaurantSystem.Client.Services.CajaApi CajaApi
+@inject ISnackbar Snackbar
+@inject NavigationManager Nav
+
+<MudStack Spacing="2">   
+
+    <MudStack Row="true" AlignItems="AlignItems.Center" JustifyContent="JustifyContent.SpaceBetween">
+        <MudButton Variant="Variant.Text" StartIcon="@Icons.Material.Filled.ArrowBack" OnClick="@(() => Nav.NavigateTo("/caja"))">
+            Volver
+        </MudButton>
+
+        <MudText Typo="Typo.h6">Cuentas por cobrar</MudText>
+
+        <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.Refresh" OnClick="Reload">
+            Actualizar
+        </MudButton>
+    </MudStack>
+
+    @if (_loading)
+    {
+        <MudProgressLinear Indeterminate="true" />
+    }
+    else if (_cuentas.Count == 0)
+    {
+        <MudAlert Severity="Severity.Info">No hay cuentas por cobrar.</MudAlert>
+    }
+    else
+    {
+        <MudGrid Spacing="2">
+            @foreach (var c in _cuentas.OrderBy(x => x.AperturaEn))
+            {
+                <MudItem xs="12" sm="6" md="4" @key="c.CuentaId">
+                    <MudCard Class="pa-2">
+                        <MudCardContent>
+                            <MudText Typo="Typo.h6">@c.Origen</MudText>
+                            <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                Apertura: @c.AperturaEn.ToLocalTime().ToString("dd/MM HH:mm")
+                            </MudText>
+
+                            <MudDivider Class="my-2" /> @* borrar *@
+
+                            <MudStack Row="true" Spacing="1" Class="mt-2" Style="flex-wrap:wrap">
+                                <MudChip T="string" Variant="Variant.Outlined">Consumido: S/ @c.TotalConsumido</MudChip>
+                                <MudChip T="string" Variant="Variant.Outlined">Pagado: S/ @c.TotalPagado</MudChip>
+                                <MudChip T="string" Color="Color.Warning" Variant="Variant.Filled">Saldo: S/ @c.SaldoPendiente</MudChip>
+                            </MudStack>
+                        </MudCardContent>
+
+                        <MudCardActions Class="pa-2">
+                            <MudButton FullWidth="true" Size="Size.Large" Variant="Variant.Filled" Color="Color.Primary"
+                                       OnClick="@(() => Nav.NavigateTo($"/caja/cuentas/{c.CuentaId}"))">
+                                Cobrar
+                            </MudButton>
+                        </MudCardActions>
+                    </MudCard>
+                </MudItem>
+            }
+        </MudGrid>
+    }
+</MudStack>
+
+@code {
+    private bool _loading;
+    private List<CuentaPorCobrarDto> _cuentas = new();
+
+    protected override async Task OnInitializedAsync() => await Reload();
+
+    private async Task Reload()
+    {
+        _loading = true;
+        try { _cuentas = await CajaApi.ListarCuentasPorCobrarAsync(); }
+        catch (Exception ex) { Snackbar.Add(ex.Message, Severity.Error); }
+        finally { _loading = false; }
+    }
+}

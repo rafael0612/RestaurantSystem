@@ -31,7 +31,11 @@ namespace RestaurantSystem.Domain.Entities
             NroPersonas = null;
         }
 
-        public void MarcarOcupada() => Estado = EstadoMesa.Ocupada;
+        public void MarcarOcupada(int? nroPersonas) 
+        { 
+            Estado = EstadoMesa.Ocupada;
+            NroPersonas = nroPersonas;
+        }
         public void MarcarPorCobrar() => Estado = EstadoMesa.PorCobrar;
     }
 }

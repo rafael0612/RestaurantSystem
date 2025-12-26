@@ -1,0 +1,299 @@
+﻿@*@page "/caja/cuentas/{CuentaId:guid}"
+
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Caja,Admin")]
+
+@inject RestaurantSystem.Client.Services.CajaApi CajaApi
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+@inject NavigationManager Nav
+
+< MudStack Spacing="2">
+
+    <MudStack Row="true" AlignItems="AlignItems.Center" JustifyContent="JustifyContent.SpaceBetween">
+        <MudButton Variant="Variant.Text" StartIcon="@Icons.Material.Filled.ArrowBack" OnClick="@(() => Nav.NavigateTo("/caja/cuentas"))">
+            Volver
+        </MudButton>
+
+        <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.Refresh" OnClick="Reload">
+            Actualizar
+        </MudButton>
+    </MudStack>
+
+    @if (_loading)
+    {
+        <MudProgressLinear Indeterminate="true" />
+    }
+    else if (_dto is null)
+    {
+        <MudAlert Severity="Severity.Error">No se pudo cargar la cuenta.</MudAlert>
+    }
+    else
+    {
+        <MudPaper Class="pa-3">
+            <MudStack Spacing="1">
+            <MudText Typo="Typo.h6">@_dto.Origen</MudText>
+            <MudText Typo="Typo.body2">Saldo: <b>S/ @_dto.SaldoPendiente</b></MudText>
+            </MudStack>
+
+            <MudStack Row="true" Spacing="1" Class="mt-2" Style="flex-wrap:wrap">
+                <MudChip T="string" Variant="Variant.Outlined">Consumido: S/ @_dto.TotalConsumido</MudChip>
+                <MudChip T="string" Variant="Variant.Outlined">Pagado: S/ @_dto.TotalPagado</MudChip>
+                <MudChip T="string" Color="Color.Warning" Variant="Variant.Filled">Saldo: S/ @_dto.SaldoPendiente</MudChip>
+            </MudStack>
+        </MudPaper>
+
+        <MudText Typo="Typo.subtitle1">Ítems pendientes</MudText>
+
+        <MudStack Spacing="2">
+            @foreach (var it in _items.OrderBy(x => x.ComandaNumero).ThenBy(x => x.Producto))
+            {
+                <MudCard Class="pa-2" @key="it.ComandaDetalleId">
+                    <MudCardContent>
+                        <MudStack Row="true" AlignItems="AlignItems.Center" JustifyContent="JustifyContent.SpaceBetween">
+                            <MudCheckBox T="bool" @bind-Checked="it.Selected" Label="@it.Producto" />
+                            <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined">
+                                Cmd #@it.ComandaNumero
+                            </MudChip>
+                        </MudStack>
+
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">
+                            Pend: @it.CantidadPendiente · S/ @it.PrecioUnitario
+                        </MudText>
+
+                        <MudNumericField T="int"
+                                         Label="Cantidad a pagar"
+                                         Min="1"
+                                         Max="@it.CantidadPendiente"
+                                         Disabled="@(!it.Selected)"
+                                         @bind-Value="it.CantidadPagar"
+                                         Immediate="true" />
+                    </MudCardContent>
+                </MudCard>
+            }
+        </MudStack>
+
+        <MudDivider Class="my-2" />
+
+        <MudPaper Class="pa-3" Style="position:sticky; bottom:0; z-index:2;">
+            <MudStack Row="true" AlignItems="AlignItems.Center" JustifyContent="JustifyContent.SpaceBetween">
+                <MudText Typo="Typo.subtitle1"><b>Total:</b> S/ @TotalSeleccionado</MudText>
+
+                <MudButton Size="Size.Large" Variant="Variant.Filled" Color="Color.Success"
+                           Disabled="@(TotalSeleccionado <= 0)"
+                           OnClick="Cobrar">
+                    Cobrar
+                </MudButton>
+            </MudStack>
+        </MudPaper>
+    }
+</MudStack>
+
+@code {
+    [Parameter] public Guid CuentaId { get; set; }
+
+    private bool _loading;
+    private CuentaCobroDto? _dto;
+
+    private List<ItemVm> _items = new();
+
+    private decimal TotalSeleccionado =>
+        _items.Where(x => x.Selected)
+              .Sum(x => x.CantidadPagar * x.PrecioUnitario);
+
+    protected override async Task OnInitializedAsync() => await Reload();
+
+    private async Task Reload()
+    {
+        _loading = true;
+        try
+        {
+            _dto = await CajaApi.GetCuentaCobroAsync(CuentaId);
+            _items = _dto.Items.Select(i => new ItemVm(i)).ToList();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task Cobrar()
+    {
+        if (_dto is null) return;
+
+        var detalles = _items.Where(x => x.Selected)
+            .Select(x => new RestaurantSystem.Shared.Contracts.PagoDetalleRequest(
+                x.ComandaDetalleId, x.CantidadPagar))
+            .ToList();
+
+        var parameters = new DialogParameters
+        {
+            ["CuentaId"] = _dto.CuentaId,
+            ["Detalles"] = detalles,
+            ["Total"] = TotalSeleccionado
+        };
+
+        var dlg = await DialogService.ShowAsync<PagoDialog>("Pago", parameters);
+        var r = await dlg.Result;
+        if (r.Canceled) return;
+
+        Snackbar.Add("Pago registrado.", Severity.Success);
+        await Reload();
+    }
+
+    private sealed class ItemVm
+    {
+        public ItemVm(RestaurantSystem.Shared.Contracts.CobroItemDto dto)
+        {
+            ComandaDetalleId = dto.ComandaDetalleId;
+            ComandaNumero = dto.ComandaNumero;
+            Producto = dto.Producto;
+            CantidadPendiente = dto.CantidadPendiente;
+            PrecioUnitario = dto.PrecioUnitario;
+            CantidadPagar = Math.Min(1, CantidadPendiente);
+        }
+
+        public bool Selected { get; set; }
+        public Guid ComandaDetalleId { get; }
+        public int ComandaNumero { get; }
+        public string Producto { get; }
+        public int CantidadPendiente { get; }
+        public decimal PrecioUnitario { get; }
+        public int CantidadPagar { get; set; }
+    }
+}
+ *@
+
+
+@page "/caja/cuentas/{CuentaId:guid}"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Caja,Admin")]
+
+@inject RestaurantSystem.Client.Services.CajaApi CajaApi
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+@inject NavigationManager Nav
+
+<MudStack Spacing="2">
+    <MudStack Row="true" AlignItems="AlignItems.Center" JustifyContent="JustifyContent.SpaceBetween">
+        <MudButton Variant="Variant.Text" StartIcon="@Icons.Material.Filled.ArrowBack" OnClick="@(() => Nav.NavigateTo("/caja/cuentas"))">
+            Volver
+        </MudButton>
+
+        <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.Refresh" OnClick="Reload">
+            Actualizar
+        </MudButton>
+    </MudStack>
+
+    @if (_loading)
+    {
+        <MudProgressLinear Indeterminate="true" />
+    }
+    else if (_cuenta is null)
+    {
+        <MudAlert Severity="Severity.Error">No se pudo cargar la cuenta.</MudAlert>
+    }
+    else
+    {
+        <MudPaper Class="pa-3">
+            <MudText Typo="Typo.h6">@_cuenta.Origen</MudText>
+
+            <MudStack Row="true" Spacing="1" Class="mt-2" Style="flex-wrap:wrap">
+                <MudChip T="string" Variant="Variant.Outlined">Consumido: S/ @_cuenta.TotalConsumido</MudChip>
+                <MudChip T="string" Variant="Variant.Outlined">Pagado: S/ @_cuenta.TotalPagado</MudChip>
+                <MudChip T="string" Color="Color.Warning" Variant="Variant.Filled">Saldo: S/ @_cuenta.SaldoPendiente</MudChip>
+            </MudStack>
+
+            <MudButton FullWidth="true"
+                       Size="Size.Large"
+                       Variant="Variant.Filled"
+                       Color="Color.Success"
+                       Class="mt-3"
+                       Disabled="@(!_cuenta.Items.Any(i => i.CantidadPendiente > 0))"
+                       OnClick="AbrirPago">
+                Pagar (seleccionar ítems)
+            </MudButton>
+        </MudPaper>
+
+        <MudDivider Class="my-2" />
+
+        <MudText Typo="Typo.subtitle1">Ítems pendientes</MudText>
+
+        <MudList T="CobroItemDto" Dense="true">
+            @foreach (var it in _cuenta.Items.Where(x => x.CantidadPendiente > 0))
+            {
+                <MudListItem T="CobroItemDto">
+                    <MudText>@it.Producto</MudText>
+                    <MudSpacer />
+                    <MudText Typo="Typo.body2">Pend: @it.CantidadPendiente</MudText>
+                </MudListItem>
+            }
+        </MudList>
+    }
+</MudStack>
+
+@code {
+    [Parameter] public Guid CuentaId { get; set; }
+
+    private bool _loading;
+    private CuentaCobroDto? _cuenta;
+
+    protected override async Task OnInitializedAsync() => await Reload();
+
+    private async Task Reload()
+    {
+        _loading = true;
+        try
+        {
+            _cuenta = await CajaApi.GetCuentaCobroAsync(CuentaId);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task AbrirPago()
+    {
+        if (_cuenta is null) return;
+
+        var parameters = new DialogParameters
+        {
+            ["Cuenta"] = _cuenta
+        };
+
+        var options = new DialogOptions
+        {
+            FullWidth = true,
+            CloseOnEscapeKey = true,
+            MaxWidth = MaxWidth.Medium,
+            // para móvil se siente excelente:
+            FullScreen = true
+        };
+
+        var dlg = await DialogService.ShowAsync<RestaurantSystem.Client.Pages.Caja.Dialogs.PagoDialog>(
+            "Pago", parameters, options);
+
+        var result = await dlg.Result;
+        if (result.Canceled) return;
+
+        var req = (RegistrarPagoRequest)result.Data!;
+
+        try
+        {
+            var resp = await CajaApi.RegistrarPagoAsync(req);
+            Snackbar.Add($"Pago registrado: S/ {resp.TotalPagado} · Saldo: S/ {resp.SaldoPendiente}", Severity.Success);
+            await Reload();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+}

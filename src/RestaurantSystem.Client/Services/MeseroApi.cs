@@ -17,6 +17,9 @@ namespace RestaurantSystem.Client.Services
         public async Task<List<MesaResumenDto>> GetMesasAsync(CancellationToken ct = default)
             => await _http.GetFromJsonAsync<List<MesaResumenDto>>("api/mesero/mesas", _json, ct) ?? new();
 
+        public async Task<List<CuentasActivasParaLlevarDto>> GetCuentasActivasParaLlevarAsync(CancellationToken ct = default)
+            => await _http.GetFromJsonAsync<List<CuentasActivasParaLlevarDto>>("api/mesero/activas-para-llevar", _json, ct) ?? new();
+
         public async Task<Guid> AbrirCuentaAsync(AbrirCuentaRequest req, CancellationToken ct = default)
         {
             var resp = await _http.PostAsJsonAsync("api/mesero/cuentas", req, ct);

@@ -11,14 +11,19 @@ namespace RestaurantSystem.Application.Services
 {
     public interface ICajaService
     {
-        Task<Guid> AbrirCajaAsync(decimal montoApertura, CancellationToken ct);
+        Task<CajaSesionDto?> GetSesionAbiertaAsync(CancellationToken ct);
+        Task<CajaSesionDto> AbrirCajaAsync(decimal montoApertura, CancellationToken ct);
+
         Task RegistrarEgresoAsync(decimal monto, string motivo, CancellationToken ct);
 
-        Task<PagoResultDto> RegistrarPagoAsync(RegistrarPagoRequest req, CancellationToken ct);
+        Task<List<CuentaPorCobrarDto>> ListarCuentasPorCobrarAsync(CancellationToken ct);
+        Task<CuentaCobroDto> GetCuentaCobroAsync(Guid cuentaId, CancellationToken ct);
 
-        Task CerrarCajaAsync(CerrarCajaRequest req, CancellationToken ct);
+        Task<RegistrarPagoResponse> RegistrarPagoAsync(RegistrarPagoRequest req, CancellationToken ct);
 
-        Task<ReporteDiarioDto> GetReporteDiarioAsync(DateOnly fecha, CancellationToken ct);
+        Task<CerrarCajaResponse> CerrarCajaAsync(CerrarCajaRequest req, CancellationToken ct);
+
+        Task<ReporteDiarioCajaDto> GetReporteDiarioCajaAsync(DateOnly fecha, CancellationToken ct);
     }
 
     public class CajaService : ICajaService
@@ -29,6 +34,7 @@ namespace RestaurantSystem.Application.Services
         private readonly IReporteRepository _reporte;
         private readonly IUnitOfWork _uow;
         private readonly ICurrentUser _currentUser;
+        private readonly IMesaRepository _mesas;
 
         public CajaService(
             ICajaRepository caja,
@@ -36,7 +42,8 @@ namespace RestaurantSystem.Application.Services
             IComandaRepository comandas,
             IReporteRepository reporte,
             IUnitOfWork uow,
-            ICurrentUser currentUser)
+            ICurrentUser currentUser,
+            IMesaRepository mesas)
         {
             _caja = caja;
             _cuentas = cuentas;
@@ -44,18 +51,24 @@ namespace RestaurantSystem.Application.Services
             _reporte = reporte;
             _uow = uow;
             _currentUser = currentUser;
+            _mesas = mesas;
         }
 
-        public async Task<Guid> AbrirCajaAsync(decimal montoApertura, CancellationToken ct)
+        public Task<CajaSesionDto?> GetSesionAbiertaAsync(CancellationToken ct)
+            => _caja.GetSesionAbiertaDtoAsync(ct)!;
+
+        public async Task<CajaSesionDto> AbrirCajaAsync(decimal montoApertura, CancellationToken ct)
         {
             var abierta = await _caja.GetCajaAbiertaAsync(ct);
-            if (abierta is not null) return abierta.Id;
+            if (abierta is not null) return await _caja.GetSesionAbiertaDtoAsync(ct) 
+                                            ?? throw new InvalidOperationException("Caja abierta pero no se pudo mapear.");
 
             var sesion = new CajaSesion(_currentUser.UserId, montoApertura);
             await _caja.AddCajaSesionAsync(sesion, ct);
             await _uow.SaveChangesAsync(ct);
 
-            return sesion.Id;
+            return await _caja.GetSesionAbiertaDtoAsync(ct) 
+                ?? throw new InvalidOperationException("No se pudo obtener sesión recién abierta.");
         }
 
         public async Task RegistrarEgresoAsync(decimal monto, string motivo, CancellationToken ct)
@@ -70,11 +83,21 @@ namespace RestaurantSystem.Application.Services
             await _uow.SaveChangesAsync(ct);
         }
 
-        public async Task<PagoResultDto> RegistrarPagoAsync(RegistrarPagoRequest req, CancellationToken ct)
-        {
-            var sesion = await _caja.GetCajaAbiertaAsync(ct) 
-                        ?? throw new InvalidOperationException("Caja no está abierta.");
+        public Task<List<CuentaPorCobrarDto>> ListarCuentasPorCobrarAsync(CancellationToken ct)
+            => _caja.ListarCuentasPorCobrarAsync(ct);
 
+        public Task<CuentaCobroDto> GetCuentaCobroAsync(Guid cuentaId, CancellationToken ct)
+            => _caja.GetCuentaCobroAsync(cuentaId, ct);
+
+        public async Task<RegistrarPagoResponse> RegistrarPagoAsync(RegistrarPagoRequest req, CancellationToken ct)
+        {
+            if (req is null) throw new ArgumentNullException(nameof(req));
+
+            // 1) Caja abierta (del usuario logueado)
+            var sesion = await _caja.GetSesionAbiertaPorUsuarioAsync(_currentUser.UserId, ct) 
+                        ?? throw new InvalidOperationException("No hay una caja abierta para el usuario.");
+
+            // 2) Cargar cuenta con detalles necesarios para cobrar
             var cuenta = await _cuentas.GetByIdAsync(req.CuentaId, includeDetails: true, ct)
                         ?? throw new KeyNotFoundException("Cuenta no existe.");
 
@@ -82,36 +105,92 @@ namespace RestaurantSystem.Application.Services
             if (cuenta.Estado is D.EstadoCuenta.Cerrada or D.EstadoCuenta.Anulada)
                 throw new InvalidOperationException("Cuenta cerrada/anulada.");
 
-            // 1) Traer items y validar pendientes
+            // exigir PorCobrar antes de pagar
+            if (cuenta.Estado != D.EstadoCuenta.PorCobrar)
+                throw new InvalidOperationException("La cuenta debe estar en 'PorCobrar' antes de pagar.");
+
+            // 3) Validaciones básicas de request
+            if (req.Detalles is null || req.Detalles.Count == 0)
+                throw new InvalidOperationException("Debe seleccionar al menos un ítem.");
+
+            if (req.Metodos is null || req.Metodos.Count == 0)
+                throw new InvalidOperationException("Debe registrar al menos un método de pago.");
+
+            // 4) Build lookup de detalles que pertenecen a la cuenta (seguridad)
+            //    (asume que includeDetails trae comandas + detalles)
+            var detallesDeLaCuenta = cuenta.Comandas
+                .SelectMany(c => c.Detalles)
+                .ToDictionary(d => d.Id, d => d);
+
+            // 5) Agrupar por detalleId por si el UI envía repetidos
+            var detallesAgrupados = req.Detalles
+                .GroupBy(d => d.ComandaDetalleId)
+                .Select(g => new { DetalleId = g.Key, Cantidad = g.Sum(x => x.CantidadPagada) })
+                .ToList();
+
+            // 6) Traer items y validar pendientes
             var itemsToPay = new List<(ComandaDetalle item, int cantidad)>();
 
             foreach (var detReq in req.Detalles)
             {
-                var item = await _comandas.GetDetalleByIdAsync(detReq.ComandaDetalleId, ct)
-                           ?? throw new KeyNotFoundException($"Item {detReq.ComandaDetalleId} no existe.");
+                if (detReq.CantidadPagada <= 0)
+                    throw new InvalidOperationException("Cantidad pagada debe ser mayor a 0.");
 
-                if (item.Anulado) throw new InvalidOperationException("No se puede pagar un item anulado.");
+                if (!detallesDeLaCuenta.TryGetValue(detReq.ComandaDetalleId, out var item))
+                    throw new InvalidOperationException("El ítem no pertenece a la cuenta (o no existe).");
+
+                if (item.Anulado)
+                    throw new InvalidOperationException("No se puede pagar un ítem anulado.");
+
                 if (detReq.CantidadPagada > item.CantidadPendientePago)
-                    throw new InvalidOperationException("Cantidad pagada excede lo pendiente.");
+                    throw new InvalidOperationException("Cantidad pagada excede lo pendiente del ítem.");
+
+                // Prohibir pagar si no está Listo/Entregado:
+                if (item.EstadoCocina is D.EstadoCocinaItem.Pendiente or D.EstadoCocinaItem.Preparando)
+                    throw new InvalidOperationException("No se puede pagar un ítem que aún no está listo.");
+
+
+                //var item = await _comandas.GetDetalleByIdAsync(detReq.ComandaDetalleId, ct)
+                //           ?? throw new KeyNotFoundException($"Item {detReq.ComandaDetalleId} no existe.");
+
+                //if (item.Anulado) throw new InvalidOperationException("No se puede pagar un item anulado.");
+                //if (detReq.CantidadPagada <= 0) throw new InvalidOperationException("Cantidad pagada debe ser > 0.");
+                //if (detReq.CantidadPagada > item.CantidadPendientePago)
+                //    throw new InvalidOperationException("Cantidad pagada excede lo pendiente.");
 
                 itemsToPay.Add((item, detReq.CantidadPagada));
             }
 
-            // 2) Subtotal por detalles
-            var subtotal = PagoRules.CalcularSubtotalPorDetalles(itemsToPay);
+            //if (itemsToPay.Count == 0)
+            //    throw new InvalidOperationException("Debe seleccionar al menos un ítem.");
 
-            // 3) Construir pago (detalle + métodos)
+            // 7) Subtotal por detalles
+            static decimal R2(decimal x) => Math.Round(x, 2, MidpointRounding.AwayFromZero);
+
+            
+            var subtotal = R2(PagoRules.CalcularSubtotalPorDetalles(itemsToPay));
+
+            // 8) Validar métodos (sumas)
+            foreach (var m in req.Metodos)
+            {
+                if (m.Monto <= 0)
+                    throw new InvalidOperationException("Monto de método debe ser mayor a 0.");
+            }
+
+            var totalMetodos = R2(req.Metodos.Sum(m => m.Monto));
+
+            if (totalMetodos != subtotal)
+                throw new InvalidOperationException($"La suma de métodos ({totalMetodos}) debe igualar el total ({subtotal}).");
+
+
+            // 9) Construir pago (detalle + métodos)
             var pago = new Pago(cuenta.Id, sesion.Id, DateTime.UtcNow);
 
             foreach (var (item, cantidad) in itemsToPay)
-            {
                 pago.AgregarDetalle(item.Id, cantidad, item.PrecioUnitario);
-            }
 
             foreach (var m in req.Metodos)
-            {
                 pago.AgregarMetodo(m.Metodo.ToDomain(), m.Monto, m.ReferenciaOperacion);
-            }
 
             pago.ValidarConsistencia();
 
@@ -119,38 +198,55 @@ namespace RestaurantSystem.Application.Services
             if (pago.Total != subtotal)
                 throw new InvalidOperationException("Total del pago no coincide con el subtotal.");
 
-            // 4) Aplicar pago a items (actualiza CantidadPagada)
+            // 10) Aplicar pago a items (actualiza CantidadPagada)
             foreach (var (item, cantidad) in itemsToPay)
-            {
                 item.AplicarPago(cantidad);
-            }
 
-            // 5) Persistir
+            // 11) Persistir
             await _caja.AddPagoAsync(pago, ct);
-            await _uow.SaveChangesAsync(ct);
 
-            // 6) Si ya está todo pagado, cerrar cuenta automáticamente (regla MVP)
+            // 12) Si ya está todo pagado => cerrar cuenta + liberar mesa
             if (cuenta.SaldoPendiente <= 0)
+            {
                 cuenta.Cerrar();
+
+                // Si es salón, liberar mesa
+                if (cuenta.Tipo == D.TipoCuenta.Salon && cuenta.MesaId is not null)
+                {
+                    var mesa = await _mesas.GetByIdAsync(cuenta.MesaId.Value, ct)
+                               ?? throw new InvalidOperationException("Mesa asociada no existe.");
+
+                    mesa.MarcarLibre(); // Dejar Libre + limpiar CuentaActivaId si tu dominio lo maneja así
+                }
+            }
 
             await _uow.SaveChangesAsync(ct);
 
             // PagoResultDto es Shared.Contracts, no requiere mapping
-            return new PagoResultDto(pago.Id, pago.Total, pago.PagadoEn);
+            return new RegistrarPagoResponse(
+                PagoId: pago.Id, 
+                TotalPagado: pago.Total, 
+                SaldoPendiente: cuenta.SaldoPendiente
+            );
         }
 
-        public async Task CerrarCajaAsync(CerrarCajaRequest req, CancellationToken ct)
+        public async Task<CerrarCajaResponse> CerrarCajaAsync(CerrarCajaRequest req, CancellationToken ct)
         {
             var sesion = await _caja.GetCajaAbiertaAsync(ct) 
                         ?? throw new InvalidOperationException("Caja no está abierta.");
 
-            // El cálculo exacto de efectivo esperado se hace mejor en Infra con query agregada.
-            // Aquí lo dejamos como placeholder: en Infra lo implementaremos y lo pasaremos.
             //decimal efectivoEsperado = sesion.MontoApertura; // TODO: reemplazar con cálculo real
             decimal efectivoEsperado = await _caja.CalcularEfectivoEsperadoAsync(sesion.Id, ct); // TODO: reemplazar con cálculo real
 
             sesion.Cerrar(req.MontoContado, efectivoEsperado, req.MotivoDiferencia);
             await _uow.SaveChangesAsync(ct);
+
+            return new CerrarCajaResponse(
+                CajaSesionId: sesion.Id,
+                EfectivoEsperado: efectivoEsperado,
+                MontoContado: req.MontoContado,
+                Diferencia: sesion.Diferencia ?? 0m
+            );
         }
 
         public async Task<ReporteDiarioDto> GetReporteDiarioAsync(DateOnly fecha, CancellationToken ct)
@@ -173,5 +269,7 @@ namespace RestaurantSystem.Application.Services
                 top.Select(x => new ProductoVendidoDto(x.productoId, x.nombre, x.cantidad, x.monto)).ToList()
             );
         }
+        public Task<ReporteDiarioCajaDto> GetReporteDiarioCajaAsync(DateOnly fecha, CancellationToken ct)
+            => _caja.GetReporteDiarioCajaAsync(fecha, ct);
     }
 }

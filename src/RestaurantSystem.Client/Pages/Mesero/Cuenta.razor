@@ -58,12 +58,24 @@
         <!-- Acciones de comanda -->
         <MudPaper Class="pa-4">
             <MudStack Spacing="2">
-                <MudButton FullWidth="true" Size="Size.Large" Variant="Variant.Filled"
+                <MudButton FullWidth="true" 
+                           Size="Size.Large" 
+                           Variant="Variant.Filled"
                            StartIcon="@Icons.Material.Filled.ReceiptLong"
                            Disabled="@(_creatingComanda || _comandaId is not null)"
                            OnClick="CrearComanda">
                     @(_comandaId is null ? "Crear comanda" : "Comanda activa")
                 </MudButton>
+                <MudButton FullWidth="true"
+                           Size="Size.Large"
+                           StartIcon="@Icons.Material.Filled.MonetizationOn"
+                           Color="Color.Warning"
+                           Variant="Variant.Filled"
+                           Disabled="@(_cuenta?.Estado != EstadoCuenta.Abierta)"
+                           OnClick="SolicitarCobro">
+                    Solicitar cuenta (a Caja)
+                </MudButton>
+
 
                 <MudSwitch T="bool" @bind-Checked="_imprimir" Color="Color.Primary" Label="Imprimir comanda" />
 
@@ -118,22 +130,6 @@
                         Enviar a cocina
                     </MudButton>
 
-                    @* @if (_itemsLocal.Count > 0)
-                    {
-                        <MudDivider Class="my-3" />
-                        <MudText Typo="Typo.subtitle1">Ítems (comanda actual)</MudText>
-
-                        <MudList T="ItemLocal" Dense="true">
-                            @foreach (var it in _itemsLocal)
-                            {
-                                <MudListItem T="ItemLocal">
-                                    <MudText>@it.Nombre</MudText>
-                                    <MudSpacer />
-                                    <MudText>x@it.Cantidad</MudText>
-                                </MudListItem>
-                            }
-                        </MudList>
-                    } *@
                     @if (_cart.Count > 0)
                     {
                         <MudDivider Class="my-3" />
@@ -402,6 +398,20 @@
     private void RemoveLine(CartLine line) => _cart.Remove(line);
 
     private decimal CartTotal() => _cart.Sum(x => x.Precio * x.Cantidad);
+
+    private async Task SolicitarCobro()
+    {
+        try
+        {
+            await MeseroApi.SolicitarCuentaAsync(CuentaId);
+            Snackbar.Add("Cuenta enviada a Caja.", Severity.Success);
+            await Reload();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
 
 
     // private record ItemLocal(string Nombre, int Cantidad);

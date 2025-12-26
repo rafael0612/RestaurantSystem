@@ -6,6 +6,7 @@ namespace RestaurantSystem.Application.Abstractions.Persistence
     {
         Task<Cuenta?> GetByIdAsync(Guid cuentaId, bool includeDetails, CancellationToken ct);
         Task<Cuenta?> GetCuentaActivaPorMesaAsync(Guid mesaId, CancellationToken ct);
+        Task<List<Cuenta>> GetAllCuentasActivasParaLlevarAsync(CancellationToken ct);
         Task AddAsync(Cuenta cuenta, CancellationToken ct);
     }
 }

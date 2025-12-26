@@ -1,0 +1,282 @@
+﻿
+<MudDialog>
+    <DialogContent>
+        <MudText Typo="Typo.h6">Cobro</MudText>
+
+        @if (Cuenta is null)
+        {
+            <MudAlert Severity="Severity.Error" Class="mt-2">No se recibió la cuenta.</MudAlert>
+            return;
+        }
+
+        <!-- Resumen -->
+        <MudPaper Class="pa-3 mt-2">
+            <MudText Typo="Typo.subtitle1">@Cuenta.Origen</MudText>
+            <MudText Typo="Typo.caption" Color="Color.Secondary">
+                Apertura: @Cuenta.AperturaEn.ToLocalTime().ToString("dd/MM HH:mm")
+            </MudText>
+
+            <MudStack Row="true" Spacing="2" Class="mt-2" Style="flex-wrap:wrap">
+                <MudChip T="string" Variant="Variant.Outlined">Consumido: S/ @Cuenta.TotalConsumido</MudChip>
+                <MudChip T="string" Variant="Variant.Outlined">Pagado: S/ @Cuenta.TotalPagado</MudChip>
+                <MudChip T="string" Color="Color.Warning" Variant="Variant.Filled">Saldo: S/ @Cuenta.SaldoPendiente</MudChip>
+            </MudStack>
+        </MudPaper>
+
+        <MudDivider Class="my-3" />
+
+        <!-- Ítems -->
+        <MudText Typo="Typo.subtitle1">Selecciona ítems a pagar</MudText>
+
+        <MudSwitch T="bool" @bind-Value="_soloListos" Color="Color.Success" Label="Mostrar solo Listo/Entregado" Class="mt-1" />
+
+        <MudStack Spacing="1" Class="mt-2">
+            @foreach (var it in ItemsVisibles())
+            {
+                <MudPaper Class="pa-2" Style="border:1px solid rgba(0,0,0,.10); border-radius:12px;" @key="it.ComandaDetalleId">
+                    <MudGrid Spacing="1" AlignItems="AlignItems.Center">
+                        <MudItem xs="12">
+                            <MudStack Row="true" JustifyContent="JustifyContent.SpaceBetween" AlignItems="AlignItems.Center">
+                                <MudCheckBox T="bool" @bind-Value="it.Selected" Label="@it.Producto" />
+                                <MudChip T="string" Size="Size.Small" Variant="Variant.Filled" Color="@EstadoColor(it.EstadoCocina)">
+                                    @it.EstadoCocina.ToString()
+                                </MudChip>
+                            </MudStack>
+                        </MudItem>
+
+                        <MudItem xs="6">
+                            <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                Pendiente: @it.CantidadPendiente · S/ @it.PrecioUnitario
+                            </MudText>
+                            @if (!string.IsNullOrWhiteSpace(it.Observacion))
+                            {
+                                <MudText Typo="Typo.caption" Color="Color.Secondary">Obs: @it.Observacion</MudText>
+                            }
+                        </MudItem>
+
+                        <MudItem xs="6">
+                            <MudNumericField T="int"
+                                             Label="Cantidad"
+                                             Variant="Variant.Outlined"
+                                             Dense="true"
+                                             Immediate="true"
+                                             Disabled="@(!it.Selected)"
+                                             Min="1"
+                                             Max="@it.CantidadPendiente"
+                                             @bind-Value="it.CantidadAPagar" />
+                        </MudItem>
+                    </MudGrid>
+                </MudPaper>
+            }
+        </MudStack>
+
+        <MudDivider Class="my-3" />
+
+        <!-- Totales -->
+        <MudStack Row="true" JustifyContent="JustifyContent.SpaceBetween" AlignItems="AlignItems.Center">
+            <MudText Typo="Typo.subtitle1">Subtotal</MudText>
+            <MudText Typo="Typo.h6">S/ @_subtotal</MudText>
+        </MudStack>
+
+        <MudDivider Class="my-2" />
+
+        <!-- Métodos -->
+        <MudText Typo="Typo.subtitle1">Métodos de pago</MudText>
+
+        <MudGrid Spacing="2" Class="mt-1">
+            <MudItem xs="12" sm="4">
+                <MudNumericField T="decimal"
+                                 Label="Efectivo"
+                                 Variant="Variant.Outlined"
+                                 Immediate="true"
+                                 Min="0"
+                                 @bind-Value="_efectivo"
+                                 Adornment="Adornment.Start"
+                                 AdornmentText="S/" />
+            </MudItem>
+
+            <MudItem xs="12" sm="4">
+                <MudNumericField T="decimal"
+                                 Label="Yape"
+                                 Variant="Variant.Outlined"
+                                 Immediate="true"
+                                 Min="0"
+                                 @bind-Value="_yape"
+                                 Adornment="Adornment.Start"
+                                 AdornmentText="S/" />
+                <MudTextField Label="Ref (opcional)"
+                              Variant="Variant.Outlined"
+                              Dense="true"
+                              @bind-Value="_refYape"
+                              Class="mt-1" />
+            </MudItem>
+
+            <MudItem xs="12" sm="4">
+                <MudNumericField T="decimal"
+                                 Label="Plin"
+                                 Variant="Variant.Outlined"
+                                 Immediate="true"
+                                 Min="0"
+                                 @bind-Value="_plin"
+                                 Adornment="Adornment.Start"
+                                 AdornmentText="S/" />
+                <MudTextField Label="Ref (opcional)"
+                              Variant="Variant.Outlined"
+                              Dense="true"
+                              @bind-Value="_refPlin"
+                              Class="mt-1" />
+            </MudItem>
+        </MudGrid>
+
+        <MudStack Row="true" Spacing="2" AlignItems="AlignItems.Center" Class="mt-2" Style="flex-wrap:wrap">
+            <MudButton Variant="Variant.Outlined" OnClick="CompletarConEfectivo" Disabled="@(_subtotal <= 0)">
+                Completar con efectivo
+            </MudButton>
+
+            <MudSwitch T="bool" @bind-Value="_imprimirTicket" Color="Color.Primary" Label="Imprimir ticket" />
+
+            <MudSpacer />
+
+            <MudText Typo="Typo.subtitle2" Color="@(_okSuma? Color.Success: Color.Error)">
+                Suma métodos: S/ @_sumaMetodos
+            </MudText>
+        </MudStack>
+
+        @if (!_okSuma && _subtotal > 0)
+        {
+            <MudAlert Severity="Severity.Error" Class="mt-2">
+                La suma de métodos debe ser igual al subtotal.
+            </MudAlert>
+        }
+    </DialogContent>
+
+    <DialogActions>
+        <MudButton Variant="Variant.Text" OnClick="Cancel">Cancelar</MudButton>
+
+        <MudButton Color="Color.Success"
+                   Variant="Variant.Filled"
+                   Disabled="@(!_canConfirm)"
+                   OnClick="Confirmar">
+            Confirmar pago
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] public IMudDialogInstance MudDialog { get; set; } = default!;
+
+    [Parameter] public CuentaCobroDto? Cuenta { get; set; }
+
+    private bool _soloListos = true;
+
+    // métodos
+    private decimal _efectivo;
+    private decimal _yape;
+    private decimal _plin;
+    private string? _refYape;
+    private string? _refPlin;
+    private bool _imprimirTicket = true;
+
+    // items VM
+    private List<ItemVm> _items = new();
+
+    private decimal _subtotal => _items.Where(i => i.Selected).Sum(i => i.CantidadAPagar * i.PrecioUnitario);
+    private decimal _sumaMetodos => _efectivo + _yape + _plin;
+
+    private bool _okSuma => Math.Round(_subtotal, 2) == Math.Round(_sumaMetodos, 2);
+
+    private bool _canConfirm =>
+        _subtotal > 0 &&
+        _items.Any(i => i.Selected && i.CantidadAPagar > 0) &&
+        _sumaMetodos > 0 &&
+        _okSuma;
+
+    protected override void OnParametersSet()
+    {
+        if (Cuenta is null) return;
+
+        _items = Cuenta.Items
+            .Where(x => x.CantidadPendiente > 0)
+            .Select(x => new ItemVm(x))
+            .ToList();
+    }
+
+    private IEnumerable<ItemVm> ItemsVisibles()
+    {
+        IEnumerable<ItemVm> q = _items;
+
+        if (_soloListos)
+            q = q.Where(i => i.EstadoCocina is EstadoCocinaItem.Listo or EstadoCocinaItem.Entregado);
+
+        return q;
+    }
+
+    private void CompletarConEfectivo()
+    {
+        var diff = _subtotal - (_yape + _plin);
+        _efectivo = diff < 0 ? 0 : diff;
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+
+    private void Confirmar()
+    {
+        if (Cuenta is null) return;
+
+        var detalles = _items
+            .Where(i => i.Selected && i.CantidadAPagar > 0)
+            .Select(i => new PagoDetalleRequest(i.ComandaDetalleId, i.CantidadAPagar))
+            .ToList();
+
+        var metodos = new List<PagoMetodoRequest>();
+
+        if (_efectivo > 0) metodos.Add(new PagoMetodoRequest(MetodoPago.Efectivo, _efectivo, null));
+        if (_yape > 0) metodos.Add(new PagoMetodoRequest(MetodoPago.Yape, _yape, string.IsNullOrWhiteSpace(_refYape) ? null : _refYape.Trim()));
+        if (_plin > 0) metodos.Add(new PagoMetodoRequest(MetodoPago.Plin, _plin, string.IsNullOrWhiteSpace(_refPlin) ? null : _refPlin.Trim()));
+
+        var req = new RegistrarPagoRequest(
+            CuentaId: Cuenta.CuentaId,
+            Detalles: detalles,
+            Metodos: metodos,
+            ImprimirTicket: _imprimirTicket
+        );
+
+        MudDialog.Close(DialogResult.Ok(req));
+    }
+
+    private static Color EstadoColor(EstadoCocinaItem e) => e switch
+    {
+        EstadoCocinaItem.Pendiente => Color.Warning,
+        EstadoCocinaItem.Preparando => Color.Info,
+        EstadoCocinaItem.Listo => Color.Success,
+        EstadoCocinaItem.Entregado => Color.Success,
+        EstadoCocinaItem.Anulado => Color.Error,
+        _ => Color.Default
+    };
+
+    private class ItemVm
+    {
+        public ItemVm(CobroItemDto dto)
+        {
+            ComandaDetalleId = dto.ComandaDetalleId;
+            Producto = dto.Producto;
+            CantidadPendiente = dto.CantidadPendiente;
+            PrecioUnitario = dto.PrecioUnitario;
+            Observacion = dto.Observacion;
+            EstadoCocina = dto.EstadoCocina;
+
+            Selected = false;
+            CantidadAPagar = Math.Max(1, Math.Min(dto.CantidadPendiente, 1));
+        }
+
+        public Guid ComandaDetalleId { get; }
+        public string Producto { get; }
+        public int CantidadPendiente { get; }
+        public decimal PrecioUnitario { get; }
+        public string? Observacion { get; }
+        public EstadoCocinaItem EstadoCocina { get; }
+
+        public bool Selected { get; set; }
+        public int CantidadAPagar { get; set; }
+    }
+}

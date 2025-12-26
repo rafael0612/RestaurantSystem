@@ -1,0 +1,102 @@
+﻿@page "/caja/reporte"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Caja,Admin")]
+
+@using MudBlazor
+@using RestaurantSystem.Shared.Contracts
+@using RestaurantSystem.Shared.Enums
+@inject RestaurantSystem.Client.Services.CajaApi CajaApi
+@inject ISnackbar Snackbar
+@inject NavigationManager Nav
+
+<MudStack Spacing="2">
+    <MudStack Row="true" AlignItems="AlignItems.Center" JustifyContent="JustifyContent.SpaceBetween">
+        <MudButton Variant="Variant.Text" StartIcon="@Icons.Material.Filled.ArrowBack" OnClick="@(() => Nav.NavigateTo("/caja"))">
+            Volver
+        </MudButton>
+
+        <MudText Typo="Typo.h6">Reporte diario</MudText>
+
+        <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.Refresh" OnClick="Reload">
+            Actualizar
+        </MudButton>
+    </MudStack>
+
+    <MudPaper Class="pa-3">
+        <MudDatePicker Label="Fecha"
+                       @bind-Date="_fecha"
+                       Variant="Variant.Outlined"
+                       MaxDate="DateTime.Today" />
+    </MudPaper>
+
+    @if (_loading)
+    {
+        <MudProgressLinear Indeterminate="true" />
+    }
+    else if (_reporte is null)
+    {
+        <MudAlert Severity="Severity.Info">Sin datos.</MudAlert>
+    }
+    else
+    {
+        <MudPaper Class="pa-3">
+            <MudText Typo="Typo.subtitle1">Total ventas: S/ @_reporte.TotalVentas</MudText>
+
+            <MudStack Row="true" Spacing="1" Class="mt-2" Style="flex-wrap:wrap">
+                @foreach (var m in _reporte.TotalesPorMetodo)
+                {
+                    <MudChip T="string" Variant="Variant.Outlined">@m.Metodo: S/ @m.Total</MudChip>
+                }
+            </MudStack>
+        </MudPaper>
+
+        <MudDivider Class="my-2" />
+
+        <MudText Typo="Typo.subtitle1">Pagos</MudText>
+
+        @if (_reporte.Pagos.Count == 0)
+        {
+            <MudAlert Severity="Severity.Info">No hay pagos en esta fecha.</MudAlert>
+        }
+        else
+        {
+            <MudTable T="PagoResumenCajaDto" Items="_reporte.Pagos" Dense="true" Hover="true">
+                <HeaderContent>
+                    <MudTh>Hora</MudTh>
+                    <MudTh>Origen</MudTh>
+                    <MudTh>Total</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd>@context.PagadoEn.ToLocalTime().ToString("HH:mm")</MudTd>
+                    <MudTd>@context.Origen</MudTd>
+                    <MudTd>S/ @context.Total</MudTd>
+                </RowTemplate>
+            </MudTable>
+        }
+    }
+</MudStack>
+
+@code {
+    private bool _loading;
+    private DateTime? _fecha = DateTime.Today;
+    private ReporteDiarioCajaDto? _reporte;
+
+    protected override async Task OnInitializedAsync() => await Reload();
+
+    private async Task Reload()
+    {
+        _loading = true;
+        try
+        {
+            var f = DateOnly.FromDateTime((_fecha ?? DateTime.Today).Date);
+            _reporte = await CajaApi.ReporteAsync(f);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+}

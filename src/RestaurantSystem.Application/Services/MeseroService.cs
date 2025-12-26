@@ -12,6 +12,7 @@ namespace RestaurantSystem.Application.Services
     public interface IMeseroService
     {
         Task<List<MesaResumenDto>> GetMesasAsync(CancellationToken ct);
+        Task<List<CuentasActivasParaLlevarDto>> GetCuentasActivasParaLlevarAsync(CancellationToken ct);
         Task<Guid> AbrirCuentaAsync(AbrirCuentaRequest req, CancellationToken ct);
         Task SolicitarCuentaAsync(Guid cuentaId, CancellationToken ct);
 
@@ -61,16 +62,38 @@ namespace RestaurantSystem.Application.Services
             return result;
         }
 
+        public async Task<List<CuentasActivasParaLlevarDto>> GetCuentasActivasParaLlevarAsync(CancellationToken ct)
+        {
+            // Obtener todas las cuentas activas para llevar
+            var allCuentas = await _cuentas.GetAllCuentasActivasParaLlevarAsync(ct);
+            // Mapear a DTOs
+            var result = new List<CuentasActivasParaLlevarDto>(allCuentas.Count);
+            foreach (var c in allCuentas)
+            {
+                result.Add(new CuentasActivasParaLlevarDto(
+                    CuentaActivaId: c.Id,
+                    AperturaEn: c.AperturaEn
+                ));
+            }
+            return result;
+        }
+
         public async Task<Guid> AbrirCuentaAsync(AbrirCuentaRequest req, CancellationToken ct)
         {
             var tipoDomain = req.Tipo.ToDomain();
             if (tipoDomain == D.TipoCuenta.Salon)
             {
-                if (!req.MesaId.HasValue) throw new InvalidOperationException("MesaId requerido para salón.");
+                if (!req.MesaId.HasValue) throw new InvalidOperationException("Mesa requerido para salón.");
 
                 // Si ya hay una cuenta activa en la mesa, devolvemos esa cuenta
                 var existente = await _cuentas.GetCuentaActivaPorMesaAsync(req.MesaId.Value, ct);
                 if (existente is not null) return existente.Id;
+
+                //Ocupar mesa si es cuenta salón
+                var mesa = await _mesas.GetByIdAsync(req.MesaId.Value, ct)
+                    ?? throw new KeyNotFoundException("Mesa no existe");
+
+                mesa.MarcarOcupada(req.NroPersonas);
             }
 
             var cuenta = new Cuenta(req.Tipo.ToDomain(), req.MesaId, _currentUser.UserId, req.ObservacionGeneral);
@@ -86,7 +109,20 @@ namespace RestaurantSystem.Application.Services
             var cuenta = await _cuentas.GetByIdAsync(cuentaId, includeDetails: false, ct)
                         ?? throw new KeyNotFoundException("Cuenta no existe.");
 
+            if (cuenta.Estado != D.EstadoCuenta.Abierta)
+                throw new InvalidOperationException("Solo se puede solicitar cobro desde una cuenta Abierta.");
+
             cuenta.SolicitarCuenta();
+
+            // Si es salón, la mesa pasa a "PorCobrar"
+            if (cuenta.Tipo == D.TipoCuenta.Salon && cuenta.MesaId is not null)
+            {
+                var mesa = await _mesas.GetByIdAsync(cuenta.MesaId.Value, ct)
+                           ?? throw new KeyNotFoundException("Mesa no existe.");
+
+                mesa.MarcarPorCobrar();
+            }
+
             await _uow.SaveChangesAsync(ct);
         }
 
