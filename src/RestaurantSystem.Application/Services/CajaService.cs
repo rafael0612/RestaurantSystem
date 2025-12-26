@@ -3,6 +3,7 @@ using RestaurantSystem.Application.Abstractions.Security;
 using RestaurantSystem.Application.Common;
 using RestaurantSystem.Application.Services.Rules;
 using RestaurantSystem.Domain.Entities;
+using RestaurantSystem.Domain.Enums;
 using RestaurantSystem.Shared.Contracts;
 using D = RestaurantSystem.Domain.Enums;
 using S = RestaurantSystem.Shared.Enums;
@@ -11,10 +12,9 @@ namespace RestaurantSystem.Application.Services
 {
     public interface ICajaService
     {
-        Task<CajaSesionDto?> GetSesionAbiertaAsync(CancellationToken ct);
-        Task<CajaSesionDto> AbrirCajaAsync(decimal montoApertura, CancellationToken ct);
-
-        Task RegistrarEgresoAsync(decimal monto, string motivo, CancellationToken ct);
+        Task<CajaSesionDto?> GetSesionActualAsync(CancellationToken ct);
+        Task<Guid> AbrirCajaAsync(AbrirCajaRequest req, CancellationToken ct);
+        Task RegistrarEgresoAsync(RegistrarEgresoRequest req, CancellationToken ct);
 
         Task<List<CuentaPorCobrarDto>> ListarCuentasPorCobrarAsync(CancellationToken ct);
         Task<CuentaCobroDto> GetCuentaCobroAsync(Guid cuentaId, CancellationToken ct);
@@ -22,7 +22,6 @@ namespace RestaurantSystem.Application.Services
         Task<RegistrarPagoResponse> RegistrarPagoAsync(RegistrarPagoRequest req, CancellationToken ct);
 
         Task<CerrarCajaResponse> CerrarCajaAsync(CerrarCajaRequest req, CancellationToken ct);
-
         Task<ReporteDiarioCajaDto> GetReporteDiarioCajaAsync(DateOnly fecha, CancellationToken ct);
     }
 
@@ -53,32 +52,45 @@ namespace RestaurantSystem.Application.Services
             _currentUser = currentUser;
             _mesas = mesas;
         }
-
-        public Task<CajaSesionDto?> GetSesionAbiertaAsync(CancellationToken ct)
-            => _caja.GetSesionAbiertaDtoAsync(ct)!;
-
-        public async Task<CajaSesionDto> AbrirCajaAsync(decimal montoApertura, CancellationToken ct)
+        public async Task<CajaSesionDto?> GetSesionActualAsync(CancellationToken ct)
         {
-            var abierta = await _caja.GetCajaAbiertaAsync(ct);
-            if (abierta is not null) return await _caja.GetSesionAbiertaDtoAsync(ct) 
-                                            ?? throw new InvalidOperationException("Caja abierta pero no se pudo mapear.");
+            var sesion = await _caja.GetSesionAbiertaPorUsuarioAsync(_currentUser.UserId, ct);
+            if (sesion is null) return null;
 
-            var sesion = new CajaSesion(_currentUser.UserId, montoApertura);
+            // Para POS es MUY útil mostrar “efectivo esperado” mientras está abierta.
+            var esperado = await _caja.CalcularEfectivoEsperadoAsync(sesion.Id, ct);
+
+            return new CajaSesionDto(
+                CajaSesionId: sesion.Id,
+                AperturaEn: sesion.AperturaEn,
+                MontoApertura: sesion.MontoApertura,
+                Abierta: sesion.Estado == EstadoCajaSesion.Abierta,
+                CierreEn: sesion.CierreEn,
+                MontoCierreContado: sesion.MontoCierreContado,
+                EfectivoEsperado: esperado,
+                Diferencia: sesion.Diferencia
+            );
+        }
+        public async Task<Guid> AbrirCajaAsync(AbrirCajaRequest req, CancellationToken ct)
+        {
+            var abierta = await _caja.GetSesionAbiertaPorUsuarioAsync(_currentUser.UserId, ct);
+            if (abierta is not null) return abierta.Id;
+
+            var sesion = new CajaSesion(_currentUser.UserId, req.MontoApertura);
             await _caja.AddCajaSesionAsync(sesion, ct);
             await _uow.SaveChangesAsync(ct);
-
-            return await _caja.GetSesionAbiertaDtoAsync(ct) 
-                ?? throw new InvalidOperationException("No se pudo obtener sesión recién abierta.");
+            return sesion.Id;
         }
 
-        public async Task RegistrarEgresoAsync(decimal monto, string motivo, CancellationToken ct)
+        public async Task RegistrarEgresoAsync(RegistrarEgresoRequest req, CancellationToken ct)
         {
-            var sesion = await _caja.GetCajaAbiertaAsync(ct) 
-                        ?? throw new InvalidOperationException("Caja no está abierta.");
+            var sesion = await _caja.GetSesionAbiertaPorUsuarioAsync(_currentUser.UserId, ct)
+                        ?? throw new InvalidOperationException("No hay caja abierta para el usuario.");
 
-            // OJO: TipoMovimientoCaja es Domain enum
-            var mov = new MovimientoCaja(sesion.Id, _currentUser.UserId, D.TipoMovimientoCaja.Egreso, monto, motivo);
+            if (req.Monto <= 0) throw new InvalidOperationException("Monto debe ser > 0.");
+            if (string.IsNullOrWhiteSpace(req.Motivo)) throw new InvalidOperationException("Motivo es requerido.");
 
+            var mov = new MovimientoCaja(sesion.Id, _currentUser.UserId, D.TipoMovimientoCaja.Egreso, req.Monto, req.Motivo);
             await _caja.AddMovimientoAsync(mov, ct);
             await _uow.SaveChangesAsync(ct);
         }
@@ -232,20 +244,19 @@ namespace RestaurantSystem.Application.Services
 
         public async Task<CerrarCajaResponse> CerrarCajaAsync(CerrarCajaRequest req, CancellationToken ct)
         {
-            var sesion = await _caja.GetCajaAbiertaAsync(ct) 
-                        ?? throw new InvalidOperationException("Caja no está abierta.");
+            var sesion = await _caja.GetSesionAbiertaPorUsuarioAsync(_currentUser.UserId, ct)
+                        ?? throw new InvalidOperationException("No hay caja abierta para el usuario.");
 
-            //decimal efectivoEsperado = sesion.MontoApertura; // TODO: reemplazar con cálculo real
-            decimal efectivoEsperado = await _caja.CalcularEfectivoEsperadoAsync(sesion.Id, ct); // TODO: reemplazar con cálculo real
+            var esperado = await _caja.CalcularEfectivoEsperadoAsync(sesion.Id, ct);
 
-            sesion.Cerrar(req.MontoContado, efectivoEsperado, req.MotivoDiferencia);
+            sesion.Cerrar(req.MontoContado, esperado, req.MotivoDiferencia);
             await _uow.SaveChangesAsync(ct);
 
             return new CerrarCajaResponse(
                 CajaSesionId: sesion.Id,
-                EfectivoEsperado: efectivoEsperado,
+                EfectivoEsperado: esperado,
                 MontoContado: req.MontoContado,
-                Diferencia: sesion.Diferencia ?? 0m
+                Diferencia: req.MontoContado - esperado
             );
         }
 

@@ -40,7 +40,7 @@ namespace RestaurantSystem.Client.Services
             => _http.GetFromJsonAsync<List<CuentaPorCobrarDto>>("api/caja/cuentas", _json, ct) ?? Task.FromResult(new List<CuentaPorCobrarDto>());
 
         public async Task<CuentaCobroDto> GetCuentaCobroAsync(Guid cuentaId, CancellationToken ct = default)
-            => (await _http.GetFromJsonAsync<CuentaCobroDto>($"api/caja/cuentas/{cuentaId}", _json, ct))!;
+            => (await _http.GetFromJsonAsync<CuentaCobroDto>($"api/caja/cuentas/{cuentaId}/cobro", _json, ct))!;
 
 
         public async Task<RegistrarPagoResponse> RegistrarPagoAsync(RegistrarPagoRequest req, CancellationToken ct = default)
