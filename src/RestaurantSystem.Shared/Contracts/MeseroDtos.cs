@@ -10,6 +10,12 @@ public record MesaResumenDto(
     Guid? CuentaActivaId
 );
 
+public record CuentasActivasParaLlevarDto(
+    Guid? CuentaActivaId,
+    DateTime AperturaEn,
+    EstadoMesa Estado = EstadoMesa.Ocupada
+);
+
 public record AbrirCuentaRequest(
     TipoCuenta Tipo,
     Guid? MesaId,

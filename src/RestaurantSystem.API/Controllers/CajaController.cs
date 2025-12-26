@@ -11,18 +11,23 @@ namespace RestaurantSystem.API.Controllers
     public class CajaController : ControllerBase
     {
         private readonly ICajaService _caja;
-
         public CajaController(ICajaService caja) => _caja = caja;
 
-        [HttpPost("abrir")]
-        [ProducesResponseType(typeof(Guid), StatusCodes.Status200OK)]
-        public async Task<ActionResult<Guid>> AbrirCaja([FromBody] AbrirCajaRequest req, CancellationToken ct)
+        [HttpGet("sesion")]
+        [ProducesResponseType(typeof(CajaSesionDto), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status204NoContent)]
+        public async Task<IActionResult> GetSesionActual(CancellationToken ct)
         {
-            var cajaId = await _caja.AbrirCajaAsync(req.MontoApertura, ct);
-            return Ok(cajaId);
+            var dto = await _caja.GetSesionAbiertaAsync(ct);
+            return dto is null ? NoContent() : Ok(dto);
         }
 
-        [HttpPost("egreso")]
+        [HttpPost("abrir")]
+        [ProducesResponseType(typeof(CajaSesionDto), StatusCodes.Status200OK)]
+        public async Task<IActionResult> Abrir([FromBody] AbrirCajaRequest req, CancellationToken ct)
+            => Ok(await _caja.AbrirCajaAsync(req.MontoApertura, ct));
+
+        [HttpPost("egresos")]
         [ProducesResponseType(StatusCodes.Status204NoContent)]
         public async Task<IActionResult> RegistrarEgreso([FromBody] RegistrarEgresoRequest req, CancellationToken ct)
         {
@@ -30,28 +35,29 @@ namespace RestaurantSystem.API.Controllers
             return NoContent();
         }
 
+        [HttpGet("cuentas")]
+        [ProducesResponseType(typeof(List<CuentaPorCobrarDto>), StatusCodes.Status200OK)]
+        public async Task<IActionResult> CuentasPorCobrar(CancellationToken ct)
+            => Ok(await _caja.ListarCuentasPorCobrarAsync(ct));
+
+        [HttpGet("cuentas/{cuentaId:guid}")]
+        [ProducesResponseType(typeof(CuentaCobroDto), StatusCodes.Status200OK)]
+        public async Task<IActionResult> GetCuentaCobro(Guid cuentaId, CancellationToken ct)
+            => Ok(await _caja.GetCuentaCobroAsync(cuentaId, ct));
+
         [HttpPost("pagos")]
-        [ProducesResponseType(typeof(PagoResultDto), StatusCodes.Status200OK)]
-        public async Task<ActionResult<PagoResultDto>> RegistrarPago([FromBody] RegistrarPagoRequest req, CancellationToken ct)
-        {
-            var dto = await _caja.RegistrarPagoAsync(req, ct);
-            return Ok(dto);
-        }
+        [ProducesResponseType(typeof(RegistrarPagoResponse), StatusCodes.Status200OK)]
+        public async Task<IActionResult> RegistrarPago([FromBody] RegistrarPagoRequest req, CancellationToken ct)
+            => Ok(await _caja.RegistrarPagoAsync(req, ct));
 
         [HttpPost("cerrar")]
-        [ProducesResponseType(StatusCodes.Status204NoContent)]
+        [ProducesResponseType(typeof(CerrarCajaResponse), StatusCodes.Status200OK)]
         public async Task<IActionResult> CerrarCaja([FromBody] CerrarCajaRequest req, CancellationToken ct)
-        {
-            await _caja.CerrarCajaAsync(req, ct);
-            return NoContent();
-        }
+            => Ok(await _caja.CerrarCajaAsync(req, ct));
 
-        [HttpGet("reporte-diario")]
-        [ProducesResponseType(typeof(ReporteDiarioDto), StatusCodes.Status200OK)]
-        public async Task<ActionResult<ReporteDiarioDto>> ReporteDiario([FromQuery] DateOnly fecha, CancellationToken ct)
-        {
-            var dto = await _caja.GetReporteDiarioAsync(fecha, ct);
-            return Ok(dto);
-        }
+        [HttpGet("reporte")]
+        [ProducesResponseType(typeof(ReporteDiarioCajaDto), StatusCodes.Status200OK)]
+        public async Task<IActionResult> Reporte([FromQuery] DateOnly? fecha, CancellationToken ct)
+            => Ok(await _caja.GetReporteDiarioCajaAsync(fecha ?? DateOnly.FromDateTime(DateTime.Today), ct));
     }
 }

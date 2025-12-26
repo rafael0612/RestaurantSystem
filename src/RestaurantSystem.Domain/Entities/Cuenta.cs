@@ -40,7 +40,9 @@ public class Cuenta : AggregateRoot
 
     public void SolicitarCuenta()
     {
-        if (Estado != EstadoCuenta.Abierta) return;
+        if (Estado != EstadoCuenta.Abierta) 
+            throw new DomainException("Solo se puede solicitar cuenta si está Abierta.");
+
         Estado = EstadoCuenta.PorCobrar;
     }
 
@@ -52,7 +54,8 @@ public class Cuenta : AggregateRoot
 
     public void Cerrar()
     {
-        if (Estado == EstadoCuenta.Cerrada) return;
+        if (Estado == EstadoCuenta.Cerrada) throw new DomainException("Cuenta cerrada.");
+        if (Estado == EstadoCuenta.Anulada) throw new DomainException("Cuenta anulada.");
         Estado = EstadoCuenta.Cerrada;
         CierreEn = DateTime.UtcNow;
     }
@@ -77,5 +80,15 @@ public class Cuenta : AggregateRoot
 
     // Agregados internos
     internal void AddComanda(Comanda comanda) => _comandas.Add(comanda);
-    internal void AddPago(Pago pago) => _pagos.Add(pago);
+    internal void AddPago(Pago pago) 
+    {
+        if (Estado is EstadoCuenta.Cerrada or EstadoCuenta.Anulada)
+            throw new DomainException("No se puede pagar una cuenta cerrada/anulada.");
+
+        _pagos.Add(pago);
+
+        // Si aún no está PorCobrar, Caja la puede mover automáticamente
+        if (Estado == EstadoCuenta.Abierta)
+            Estado = EstadoCuenta.PorCobrar;
+    }
 }

@@ -1,0 +1,42 @@
+﻿
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <DialogContent>
+        <MudText Typo="Typo.h6">Abrir caja</MudText>
+
+        <MudNumericField T="decimal"
+                         Label="Monto de apertura"
+                         @bind-Value="_monto"
+                         Min="0"
+                         Immediate="true"
+                         Variant="Variant.Outlined"
+                         Class="mt-3"
+                         Adornment="Adornment.Start"
+                         AdornmentText="S/" />
+    </DialogContent>
+
+    <DialogActions>
+        <MudButton Variant="Variant.Text" OnClick="Cancel">Cancelar</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="Ok">Abrir</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] public IMudDialogInstance MudDialog { get; set; } = default!;
+
+    private decimal _monto = 0;
+
+    private void Cancel() => MudDialog.Cancel();
+
+    private void Ok()
+    {
+        if (_monto < 0)
+        {
+            Snackbar.Add("El monto no puede ser negativo.", Severity.Error);
+            return;
+        }
+
+        MudDialog.Close(DialogResult.Ok(new AbrirCajaRequest(_monto)));
+    }
+}

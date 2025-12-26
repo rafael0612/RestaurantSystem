@@ -22,6 +22,14 @@ namespace RestaurantSystem.API.Controllers
             return Ok(list);
         }
 
+        [HttpGet("activas-para-llevar")]
+        [ProducesResponseType(typeof(List<CuentasActivasParaLlevarDto>), StatusCodes.Status200OK)]
+        public async Task<ActionResult<List<CuentasActivasParaLlevarDto>>> GetCuentasActivasParaLlevar(CancellationToken ct)
+        {
+            var list = await _mesero.GetCuentasActivasParaLlevarAsync(ct);
+            return Ok(list);
+        }
+
         [HttpPost("cuentas")]
         [ProducesResponseType(typeof(Guid), StatusCodes.Status200OK)]
         public async Task<ActionResult<Guid>> AbrirCuenta([FromBody] AbrirCuentaRequest req, CancellationToken ct)

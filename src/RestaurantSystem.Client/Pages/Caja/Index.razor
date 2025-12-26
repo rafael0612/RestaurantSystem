@@ -1,0 +1,173 @@
+﻿@page "/caja"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Caja,Admin")]
+
+@inject RestaurantSystem.Client.Services.CajaApi CajaApi
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+@inject NavigationManager Nav
+
+<MudStack Spacing="2">
+    <MudStack Row="true" AlignItems="AlignItems.Center" JustifyContent="JustifyContent.SpaceBetween">
+        <MudText Typo="Typo.h5">Caja (POS)</MudText>
+
+        <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.Refresh" OnClick="Reload">
+            Actualizar
+        </MudButton>
+    </MudStack>
+
+    @if (_loading)
+    {
+        <MudProgressLinear Indeterminate="true" />
+    }
+    else if (_sesion is null)
+    {
+        <MudAlert Severity="Severity.Warning">No hay una caja abierta.</MudAlert>
+
+        <MudButton FullWidth="true" Size="Size.Large" Variant="Variant.Filled" Color="Color.Primary"
+                   OnClick="AbrirCaja">
+            Abrir caja
+        </MudButton>
+    }
+    else
+    {
+        <MudPaper Class="pa-3">
+            <MudStack Spacing="1">
+                <MudText Typo="Typo.subtitle1">Sesión abierta</MudText>
+                <MudText Typo="Typo.body2">Apertura: @_sesion.AperturaEn.ToLocalTime()</MudText>
+                <MudText Typo="Typo.body2">Monto apertura: S/ @_sesion.MontoApertura</MudText>
+            </MudStack>
+        </MudPaper>
+
+        <MudGrid Spacing="2">
+            <MudItem xs="12" sm="6">
+                <MudButton FullWidth="true" Size="Size.Large" Variant="Variant.Filled"
+                           Color="Color.Primary"
+                           StartIcon="@Icons.Material.Filled.ReceiptLong"
+                           OnClick="@(() => Nav.NavigateTo("/caja/cuentas"))">
+                    Cuentas por cobrar
+                </MudButton>
+            </MudItem>
+
+            <MudItem xs="12" sm="6">
+                <MudButton FullWidth="true" Size="Size.Large" Variant="Variant.Filled" Color="Color.Secondary"
+                           StartIcon="@Icons.Material.Filled.RemoveCircleOutline"
+                           OnClick="RegistrarEgreso">
+                    Registrar egreso
+                </MudButton>
+            </MudItem>
+
+            <MudItem xs="12" sm="6">
+                <MudButton FullWidth="true" Size="Size.Large" Variant="Variant.Filled" Color="Color.Info"
+                           StartIcon="@Icons.Material.Filled.Assessment"
+                           OnClick="@(() => Nav.NavigateTo("/caja/reporte"))">
+                    Reporte diario
+                </MudButton>
+            </MudItem>
+
+            <MudItem xs="12" sm="6">
+                <MudButton FullWidth="true" Size="Size.Large" Variant="Variant.Filled" Color="Color.Error"
+                           StartIcon="@Icons.Material.Filled.Lock"
+                           OnClick="CerrarCaja">
+                    Cerrar caja
+                </MudButton>
+            </MudItem>
+
+        </MudGrid>
+    }
+</MudStack>
+
+@code {
+    private bool _loading;
+    private CajaSesionDto? _sesion;
+
+    protected override async Task OnInitializedAsync() => await Reload();
+
+    private async Task Reload()
+    {
+        _loading = true;
+        try { _sesion = await CajaApi.GetSesionAsync(); }
+        catch (Exception ex) { Snackbar.Add(ex.Message, Severity.Error); }
+        finally { _loading = false; }
+    }
+
+    private async Task AbrirCaja()
+    {
+        // var dlg = await DialogService.ShowAsync<AbrirCajaDialog>("Abrir caja");
+        // var r = await dlg.Result;
+        // if (r.Canceled) return;
+
+        // await Reload();
+        // Snackbar.Add("Caja abierta.", Severity.Success);
+        var options = new DialogOptions { CloseOnEscapeKey = true, FullWidth = true, MaxWidth = MaxWidth.Small };
+        var dlg = await DialogService.ShowAsync<RestaurantSystem.Client.Pages.Caja.Dialogs.AbrirCajaDialog>(
+            "Abrir caja", options: options);
+
+        var result = await dlg.Result;
+        if (result.Canceled) return;
+
+        var req = (AbrirCajaRequest)result.Data!;
+        try
+        {
+            _sesion = await CajaApi.AbrirCajaAsync(req);
+            Snackbar.Add("Caja abierta.", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+
+    private async Task RegistrarEgreso()
+    {
+        // var dlg = await DialogService.ShowAsync<EgresoDialog>("Registrar egreso");
+        // var r = await dlg.Result;
+        // if (r.Canceled) return;
+
+        // Snackbar.Add("Egreso registrado.", Severity.Success);
+        var options = new DialogOptions { CloseOnEscapeKey = true, FullWidth = true, MaxWidth = MaxWidth.Small };
+        var dlg = await DialogService.ShowAsync<RestaurantSystem.Client.Pages.Caja.Dialogs.EgresoDialog>(
+            "Registrar egreso", options: options);
+
+        var result = await dlg.Result;
+        if (result.Canceled) return;
+
+        var req = (RegistrarEgresoRequest)result.Data!;
+        try
+        {
+            await CajaApi.RegistrarEgresoAsync(req);
+            Snackbar.Add("Egreso registrado.", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+
+    private async Task CerrarCaja()
+    {
+        // var dlg = await DialogService.ShowAsync<CerrarCajaDialog>("Cerrar caja");
+        // var r = await dlg.Result;
+        // if (r.Canceled) return;
+
+        // await Reload();
+        // Snackbar.Add("Caja cerrada.", Severity.Success);
+        var options = new DialogOptions { CloseOnEscapeKey = true, FullWidth = true, MaxWidth = MaxWidth.Small };
+        var dlg = await DialogService.ShowAsync<RestaurantSystem.Client.Pages.Caja.Dialogs.CerrarCajaDialog>(
+            "Cerrar caja", options: options);
+
+        var result = await dlg.Result;
+        if (result.Canceled) return;
+
+        var req = (CerrarCajaRequest)result.Data!;
+        try
+        {
+            var resp = await CajaApi.CerrarCajaAsync(req);
+            Snackbar.Add($"Caja cerrada. Esperado: S/ {resp.EfectivoEsperado} · Contado: S/ {resp.MontoContado} · Dif: S/ {resp.Diferencia}", Severity.Success);
+            _sesion = null;
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+}
